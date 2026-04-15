@@ -1,0 +1,62 @@
+ Хорошо, давай сделаем всё по делу.Я проанализировал крупные CEX (Binance, Bybit, MEXC, OKX, Gate.io, KuCoin) и выделил, что нужно для минимально рабочей спотовой биржи на старте.1. Архитектура простой CEX (MVP)Основные модули:Frontend — торговый интерфейс (график, ордербук, формы Buy/Sell)
+Backend — API, аутентификация, балансы, ордера
+Matching Engine — движок матчинга ордеров (самое важное)
+Smart Contracts — только для депозита/вывода (Polygon + ETH + BNB)
+База данных — для хранения ордеров, трейдов, балансов пользователей
+
+Поддерживаемые сети: Polygon, Ethereum, BNB Chain2. Рекомендуемый стек (оптимальный для быстрого запуска)Слой
+Технология
+Почему
+Frontend
+Next.js 15 + TypeScript + Tailwind + wagmi/viem
+Быстро, современно, Web3-ready
+Backend
+Node.js + Express или NestJS
+Простота + масштабируемость
+Matching Engine
+Redis + Node.js (или Rust)
+Очень быстрый матчинг
+БД
+PostgreSQL + Prisma
+Надёжно + ACID
+Кэш / Orderbook
+Redis
+Реал-тайм обновления
+Smart Contracts
+Solidity 0.8.24 (ERC-20 + Deposit)
+Polygon + ETH + BNB
+Деплой
+Hardhat / Foundry
+—
+
+3. Основные сущностиUser — аккаунт, wallet address, KYC (опционально)
+Balance — балансы по каждому токену (USDT, MX, BTC, ETH и т.д.)
+Order — limit / market ордера (Buy/Sell)
+Trade — исполненные сделки
+Orderbook — текущие ордера (bids + asks)
+
+4. Минимальный функционал MVP (что делаем сначала)Регистрация / подключение кошелька
+Депозит/вывод токенов (Polygon, ETH, BNB)
+Спотовая торговля парами (например MX/USDT, BTC/USDT)
+Реал-тайм Order Book
+Простой чарт (TradingView lightweight)
+История ордеров и трейдов
+Балансы пользователя
+
+5. Структура проекта (рекомендую)
+cex-mvp/
+├── frontend/          (Next.js)
+├── backend/           (NestJS или Express)
+├── contracts/         (Solidity)
+├── matching-engine/   (отдельный сервис на Node/Rust)
+├── prisma/            (схема БД)
+└── docker-compose.yml
+
+Хочешь, я прямо сейчас начну выдавать конкретный код по частям:Скажи, с чего начать:Smart Contracts (депозит/вывод на Polygon/ETH/BNB)
+Backend + API (users, balances, orders)
+Matching Engine (самое важное)
+Frontend (UI как на MEXC/Binance)
+Полная структура + docker-compose
+
+Напиши цифру или "начни с контрактов" — и я сразу дам полный код первого блока.Готов?
+

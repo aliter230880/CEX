@@ -3,20 +3,34 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: CEX Crypto Exchange API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User account operations
+  - name: balances
+    description: User balance operations
+  - name: orders
+    description: Order management
+  - name: trades
+    description: Trade history
+  - name: orderbook
+    description: Order book operations
+  - name: market
+    description: Market data
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +38,398 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /balances:
+    get:
+      operationId: getBalances
+      tags: [balances]
+      summary: Get user balances
+      responses:
+        "200":
+          description: User balances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Balance"
+
+  /balances/deposit:
+    post:
+      operationId: deposit
+      tags: [balances]
+      summary: Deposit funds (simulated)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DepositBody"
+      responses:
+        "200":
+          description: Deposit successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+
+  /balances/withdraw:
+    post:
+      operationId: withdraw
+      tags: [balances]
+      summary: Withdraw funds (simulated)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawBody"
+      responses:
+        "200":
+          description: Withdraw successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+        "400":
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders:
+    get:
+      operationId: getOrders
+      tags: [orders]
+      summary: Get user orders
+      parameters:
+        - name: pair
+          in: query
+          schema:
+            type: string
+          description: Trading pair (e.g. BTC/USDT)
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, filled, cancelled, partial]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: User orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Order"
+
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderBody"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Invalid order or insufficient balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/{id}:
+    delete:
+      operationId: cancelOrder
+      tags: [orders]
+      summary: Cancel an order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /trades:
+    get:
+      operationId: getTrades
+      tags: [trades]
+      summary: Get user trade history
+      parameters:
+        - name: pair
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Trade history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trade"
+
+  /orderbook/{pair}:
+    get:
+      operationId: getOrderBook
+      tags: [orderbook]
+      summary: Get order book for a trading pair
+      parameters:
+        - name: pair
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "Trading pair, e.g. BTC-USDT"
+        - name: depth
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Order book data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBook"
+
+  /market/pairs:
+    get:
+      operationId: getTradingPairs
+      tags: [market]
+      summary: Get available trading pairs
+      responses:
+        "200":
+          description: Trading pairs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TradingPair"
+
+  /market/ticker/{pair}:
+    get:
+      operationId: getTicker
+      tags: [market]
+      summary: Get ticker data for a trading pair
+      parameters:
+        - name: pair
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ticker data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ticker"
+
+  /market/tickers:
+    get:
+      operationId: getAllTickers
+      tags: [market]
+      summary: Get all tickers
+      responses:
+        "200":
+          description: All tickers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ticker"
+
+  /market/klines/{pair}:
+    get:
+      operationId: getKlines
+      tags: [market]
+      summary: Get candlestick/kline data
+      parameters:
+        - name: pair
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 4h, 1d]
+            default: 1h
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: Kline data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Kline"
+
+  /market/recent-trades/{pair}:
+    get:
+      operationId: getRecentTrades
+      tags: [market]
+      summary: Get recent public trades for a pair
+      parameters:
+        - name: pair
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Recent trades
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicTrade"
+
+  /market/summary:
+    get:
+      operationId: getMarketSummary
+      tags: [market]
+      summary: Get market summary stats
+      responses:
+        "200":
+          description: Market summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketSummary"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +440,398 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+
+    RegisterBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        username:
+          type: string
+        password:
+          type: string
+          minLength: 6
+      required:
+        - email
+        - username
+        - password
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        username:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+        - username
+        - createdAt
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        message:
+          type: string
+      required:
+        - user
+        - message
+
+    Balance:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        asset:
+          type: string
+        available:
+          type: string
+        locked:
+          type: string
+        network:
+          type: string
+      required:
+        - id
+        - userId
+        - asset
+        - available
+        - locked
+        - network
+
+    DepositBody:
+      type: object
+      properties:
+        asset:
+          type: string
+        amount:
+          type: string
+        network:
+          type: string
+      required:
+        - asset
+        - amount
+        - network
+
+    WithdrawBody:
+      type: object
+      properties:
+        asset:
+          type: string
+        amount:
+          type: string
+        network:
+          type: string
+        address:
+          type: string
+      required:
+        - asset
+        - amount
+        - network
+        - address
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        pair:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        type:
+          type: string
+          enum: [limit, market]
+        status:
+          type: string
+          enum: [open, filled, cancelled, partial]
+        price:
+          type: string
+          nullable: true
+        quantity:
+          type: string
+        filled:
+          type: string
+        total:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - userId
+        - pair
+        - side
+        - type
+        - status
+        - quantity
+        - filled
+        - total
+        - createdAt
+        - updatedAt
+
+    CreateOrderBody:
+      type: object
+      properties:
+        pair:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        type:
+          type: string
+          enum: [limit, market]
+        price:
+          type: string
+          nullable: true
+        quantity:
+          type: string
+      required:
+        - pair
+        - side
+        - type
+        - quantity
+
+    Trade:
+      type: object
+      properties:
+        id:
+          type: integer
+        pair:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        price:
+          type: string
+        quantity:
+          type: string
+        total:
+          type: string
+        fee:
+          type: string
+        feeAsset:
+          type: string
+        orderId:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - pair
+        - side
+        - price
+        - quantity
+        - total
+        - fee
+        - feeAsset
+        - orderId
+        - createdAt
+
+    OrderBook:
+      type: object
+      properties:
+        pair:
+          type: string
+        bids:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        asks:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        lastUpdate:
+          type: string
+          format: date-time
+      required:
+        - pair
+        - bids
+        - asks
+        - lastUpdate
+
+    TradingPair:
+      type: object
+      properties:
+        id:
+          type: integer
+        symbol:
+          type: string
+        baseAsset:
+          type: string
+        quoteAsset:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        minOrderSize:
+          type: string
+        tickSize:
+          type: string
+        stepSize:
+          type: string
+        network:
+          type: string
+      required:
+        - id
+        - symbol
+        - baseAsset
+        - quoteAsset
+        - status
+        - minOrderSize
+        - tickSize
+        - stepSize
+        - network
+
+    Ticker:
+      type: object
+      properties:
+        pair:
+          type: string
+        lastPrice:
+          type: string
+        priceChange:
+          type: string
+        priceChangePercent:
+          type: string
+        highPrice:
+          type: string
+        lowPrice:
+          type: string
+        volume:
+          type: string
+        quoteVolume:
+          type: string
+        openPrice:
+          type: string
+        network:
+          type: string
+      required:
+        - pair
+        - lastPrice
+        - priceChange
+        - priceChangePercent
+        - highPrice
+        - lowPrice
+        - volume
+        - quoteVolume
+        - openPrice
+        - network
+
+    Kline:
+      type: object
+      properties:
+        openTime:
+          type: integer
+        open:
+          type: string
+        high:
+          type: string
+        low:
+          type: string
+        close:
+          type: string
+        volume:
+          type: string
+        closeTime:
+          type: integer
+      required:
+        - openTime
+        - open
+        - high
+        - low
+        - close
+        - volume
+        - closeTime
+
+    PublicTrade:
+      type: object
+      properties:
+        id:
+          type: integer
+        pair:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        price:
+          type: string
+        quantity:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - pair
+        - side
+        - price
+        - quantity
+        - createdAt
+
+    MarketSummary:
+      type: object
+      properties:
+        totalVolume24h:
+          type: string
+        activePairs:
+          type: integer
+        totalTrades24h:
+          type: integer
+        topGainer:
+          $ref: "#/components/schemas/Ticker"
+        topLoser:
+          $ref: "#/components/schemas/Ticker"
+      required:
+        - totalVolume24h
+        - activePairs
+        - totalTrades24h
