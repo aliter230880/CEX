@@ -4,3 +4,5 @@ export * from "./trading_pairs";
 export * from "./orders";
 export * from "./trades";
 export * from "./klines";
+export * from "./deposit_addresses";
+export * from "./crypto_transactions";

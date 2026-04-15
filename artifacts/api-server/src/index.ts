@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedData } from "./lib/seed";
+import { startDepositMonitor } from "./lib/deposit-monitor";
 
 const rawPort = process.env["PORT"];
 
@@ -24,4 +25,9 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   seedData();
+  if (process.env.WALLET_MNEMONIC) {
+    startDepositMonitor();
+  } else {
+    logger.warn("WALLET_MNEMONIC not set — deposit monitoring disabled");
+  }
 });
