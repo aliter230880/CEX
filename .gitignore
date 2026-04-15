@@ -2,6 +2,8 @@
 
 # compiled output
 dist
+# Allow pre-built frontend for Docker deployment
+!artifacts/cex-exchange/dist/
 tmp
 out-tsc
 *.tsbuildinfo

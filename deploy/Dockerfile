@@ -1,24 +1,5 @@
-# ─── Stage 1: Build frontend ──────────────────────────────────────────────────
-FROM node:22-slim AS frontend-builder
-
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-WORKDIR /workspace
-
-# Copy entire monorepo (needed for workspace deps)
-COPY . .
-
-# Install all dependencies
-RUN pnpm install --frozen-lockfile
-
-# Build frontend with production settings
-ENV NODE_ENV=production
-ENV BASE_PATH=/
-ENV PORT=3000
-
-RUN pnpm --filter @workspace/cex-exchange run build
-
-# ─── Stage 2: Build API server ────────────────────────────────────────────────
+# ─── Stage 1: Build API server only ──────────────────────────────────────────
+# Frontend is pre-built and committed to repo — saves ~800MB RAM during build
 FROM node:22-slim AS api-builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -31,7 +12,7 @@ RUN pnpm install --frozen-lockfile
 
 RUN pnpm --filter @workspace/api-server run build
 
-# ─── Stage 3: Production image ────────────────────────────────────────────────
+# ─── Stage 2: Production image ────────────────────────────────────────────────
 FROM node:22-slim AS runner
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -50,8 +31,8 @@ RUN pnpm install --prod --frozen-lockfile
 # Copy compiled API server
 COPY --from=api-builder /workspace/artifacts/api-server/dist ./dist
 
-# Copy built frontend — Express serves it at /app/public
-COPY --from=frontend-builder /workspace/artifacts/cex-exchange/dist/public ./public
+# Copy pre-built frontend — Express serves it at /app/public
+COPY artifacts/cex-exchange/dist/public ./public
 
 EXPOSE 3000
 
