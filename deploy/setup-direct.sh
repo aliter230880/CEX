@@ -117,13 +117,15 @@ DATABASE_URL="postgres://$DB_USER:$DB_PASS@localhost:5432/$DB_NAME" \
 info "Запуск NexEx через PM2..."
 cd "$APP_DIR"
 pm2 delete nexex 2>/dev/null || true
-pm2 start artifacts/api-server/dist/index.mjs \
+set -o allexport
+source "$APP_DIR/.env"
+set +o allexport
+
+pm2 start "$APP_DIR/artifacts/api-server/dist/index.mjs" \
   --name nexex \
-  --env production \
-  --node-args="--enable-source-maps" \
-  --env-file "$APP_DIR/.env"
+  --node-args="--enable-source-maps"
 pm2 save
-pm2 startup | grep "sudo" | bash || true
+pm2 startup systemd -u root --hp /root | tail -1 | bash || true
 success "NexEx запущен (PM2)"
 
 # ── 9. Nginx ──────────────────────────────────────────────────────────────────
