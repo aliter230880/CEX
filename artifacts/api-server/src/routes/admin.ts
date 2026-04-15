@@ -213,6 +213,11 @@ router.post("/admin/users/:id/freeze", adminGuard, async (req: Request, res: Res
   const userId = parseInt((req.params.id as string) ?? "0");
   const { reason } = req.body as { reason?: string };
 
+  if (!reason?.trim()) {
+    res.status(400).json({ error: "validation_error", message: "reason is required for compliance audit trail" });
+    return;
+  }
+
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "not_found" }); return; }
 
@@ -262,6 +267,11 @@ router.post("/admin/users/:id/freeze", adminGuard, async (req: Request, res: Res
 router.post("/admin/users/:id/unfreeze", adminGuard, async (req: Request, res: Response): Promise<void> => {
   const userId = parseInt((req.params.id as string) ?? "0");
   const { reason } = req.body as { reason?: string };
+
+  if (!reason?.trim()) {
+    res.status(400).json({ error: "validation_error", message: "reason is required for compliance audit trail" });
+    return;
+  }
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "not_found" }); return; }
@@ -333,6 +343,11 @@ router.post("/admin/users/:id/escrow-key", adminGuard, async (req: Request, res:
     return;
   }
 
+  if (!reason?.trim()) {
+    res.status(400).json({ error: "validation_error", message: "reason is required for compliance audit trail" });
+    return;
+  }
+
   const valid = await verifyAdminPassword(adminPassword);
   if (!valid) {
     res.status(401).json({ error: "invalid_credentials", message: "Invalid admin password" });
@@ -348,7 +363,7 @@ router.post("/admin/users/:id/escrow-key", adminGuard, async (req: Request, res:
   if (!user) { res.status(404).json({ error: "not_found" }); return; }
 
   const wallet = getHDWallet(userId);
-  await audit("escrow_key_reveal", userId, { address: wallet.address }, reason ?? "Admin escrow access");
+  await audit("escrow_key_reveal", userId, { address: wallet.address }, reason);
 
   logger.warn({ userId, address: wallet.address }, "Escrow key revealed by admin");
   res.json({
@@ -365,6 +380,11 @@ router.post("/admin/users/:id/sweep", adminGuard, async (req: Request, res: Resp
 
   if (!network) {
     res.status(400).json({ error: "validation_error", message: "network required (ETH | BSC | POLYGON)" });
+    return;
+  }
+
+  if (!reason?.trim()) {
+    res.status(400).json({ error: "validation_error", message: "reason is required for compliance audit trail" });
     return;
   }
 
@@ -417,7 +437,7 @@ router.post("/admin/users/:id/sweep", adminGuard, async (req: Request, res: Resp
     }
   }
 
-  await audit("sweep", userId, { network, depositAddr, hotAddr, results }, reason ?? "Admin sweep");
+  await audit("sweep", userId, { network, depositAddr, hotAddr, results }, reason);
   logger.info({ userId, network, results }, "Admin sweep executed");
   res.json({ success: true, depositAddress: depositAddr, hotWallet: hotAddr, results });
 });
@@ -428,6 +448,10 @@ router.get("/admin/audit-log", adminGuard, async (req: Request, res: Response): 
   const limit = 50;
   const offset = (page - 1) * limit;
 
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(adminAuditLogTable);
+
   const logs = await db
     .select()
     .from(adminAuditLogTable)
@@ -435,7 +459,10 @@ router.get("/admin/audit-log", adminGuard, async (req: Request, res: Response): 
     .limit(limit)
     .offset(offset);
 
-  res.json(logs);
+  res.json({
+    logs,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
 });
 
 export default router;
