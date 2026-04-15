@@ -1,5 +1,5 @@
-import { db, ordersTable, tradesTable, balancesTable } from "@workspace/db";
-import { eq, and, asc, desc, or } from "drizzle-orm";
+import { db, ordersTable, tradesTable, balancesTable, usersTable } from "@workspace/db";
+import { eq, and, asc, desc, or, ne } from "drizzle-orm";
 import { logger } from "./logger";
 
 const FEE_RATE = 0.001; // 0.1%
@@ -8,40 +8,36 @@ export async function matchOrders(newOrderId: number): Promise<void> {
   const [newOrder] = await db.select().from(ordersTable).where(eq(ordersTable.id, newOrderId));
   if (!newOrder || newOrder.status !== "open") return;
 
+  // Do not execute orders for frozen accounts
+  const [orderOwner] = await db.select().from(usersTable).where(eq(usersTable.id, newOrder.userId));
+  if (orderOwner?.status === "frozen") {
+    logger.warn({ orderId: newOrderId, userId: newOrder.userId }, "Skipping order matching: account is frozen");
+    return;
+  }
+
   const [baseAsset, quoteAsset] = newOrder.pair.split("/");
   if (!baseAsset || !quoteAsset) return;
 
-  // Find matching orders (opposite side)
+  // Find matching orders (opposite side) — only from active (non-frozen) users
   const oppositeSide = newOrder.side === "buy" ? "sell" : "buy";
 
-  let matchingOrders;
-  if (newOrder.type === "market") {
-    // Market order matches any open limit orders on the other side
-    matchingOrders = await db
-      .select()
-      .from(ordersTable)
-      .where(
-        and(
-          eq(ordersTable.pair, newOrder.pair),
-          eq(ordersTable.side, oppositeSide),
-          or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial")),
-        ),
-      )
-      .orderBy(newOrder.side === "buy" ? asc(ordersTable.price) : desc(ordersTable.price));
-  } else {
-    // Limit order: buy matches sells at price <= buy price; sell matches buys at price >= sell price
-    matchingOrders = await db
-      .select()
-      .from(ordersTable)
-      .where(
-        and(
-          eq(ordersTable.pair, newOrder.pair),
-          eq(ordersTable.side, oppositeSide),
-          or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial")),
-        ),
-      )
-      .orderBy(newOrder.side === "buy" ? asc(ordersTable.price) : desc(ordersTable.price));
-  }
+  // Use inner join with usersTable so frozen users' orders are excluded at query level
+  const matchingOrdersRaw = await db
+    .select({ order: ordersTable })
+    .from(ordersTable)
+    .innerJoin(usersTable, eq(ordersTable.userId, usersTable.id))
+    .where(
+      and(
+        eq(ordersTable.pair, newOrder.pair),
+        eq(ordersTable.side, oppositeSide),
+        or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial")),
+        eq(usersTable.status, "active"), // exclude frozen users
+        ne(ordersTable.userId, newOrder.userId), // no self-matching
+      ),
+    )
+    .orderBy(newOrder.side === "buy" ? asc(ordersTable.price) : desc(ordersTable.price));
+
+  const matchingOrders = matchingOrdersRaw.map((r) => r.order);
 
   let remainingQty = parseFloat(newOrder.quantity) - parseFloat(newOrder.filled);
 

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import bcrypt from "bcryptjs";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, or, inArray } from "drizzle-orm";
 import { ethers } from "ethers";
 import {
   db,
@@ -134,36 +134,41 @@ router.get("/admin/stats", adminGuard, async (_req: Request, res: Response): Pro
   });
 });
 
-// GET /api/admin/users — paginated user list
+// GET /api/admin/users — server-side search + paginated user list
 router.get("/admin/users", adminGuard, async (req: Request, res: Response): Promise<void> => {
   const page = Math.max(1, parseInt((req.query["page"] as string) ?? "1"));
   const limit = 50;
   const offset = (page - 1) * limit;
-  const search = ((req.query["search"] as string) ?? "").trim().toLowerCase();
+  const search = ((req.query["search"] as string) ?? "").trim();
 
-  const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset);
+  // Build WHERE clause at SQL level so search + pagination work together correctly
+  const whereClause = search
+    ? or(ilike(usersTable.email, `%${search}%`), ilike(usersTable.username, `%${search}%`))
+    : undefined;
 
-  const filtered = search
-    ? users.filter((u) => u.email.toLowerCase().includes(search) || u.username.toLowerCase().includes(search))
-    : users;
+  // Get total count for pagination metadata
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(usersTable)
+    .where(whereClause);
 
-  const userIds = filtered.map((u) => u.id);
+  const users = whereClause
+    ? await db.select().from(usersTable).where(whereClause).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset)
+    : await db.select().from(usersTable).orderBy(desc(usersTable.createdAt)).limit(limit).offset(offset);
+
+  const userIds = users.map((u) => u.id);
   let balancesByUser: Record<number, { asset: string; available: string; locked: string }[]> = {};
 
   if (userIds.length > 0) {
-    const allBalances = await db
-      .select()
-      .from(balancesTable)
-      .where(sql`${balancesTable.userId} = ANY(ARRAY[${sql.raw(userIds.join(","))}]::int[])`);
-
+    const allBalances = await db.select().from(balancesTable).where(inArray(balancesTable.userId, userIds));
     for (const b of allBalances) {
       if (!balancesByUser[b.userId]) balancesByUser[b.userId] = [];
       balancesByUser[b.userId].push({ asset: b.asset, available: b.available, locked: b.locked });
     }
   }
 
-  res.json(
-    filtered.map((u) => ({
+  res.json({
+    users: users.map((u) => ({
       id: u.id,
       email: u.email,
       username: u.username,
@@ -171,7 +176,8 @@ router.get("/admin/users", adminGuard, async (req: Request, res: Response): Prom
       createdAt: u.createdAt,
       balances: balancesByUser[u.id] ?? [],
     })),
-  );
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
 });
 
 // GET /api/admin/users/:id — full user detail
@@ -210,11 +216,46 @@ router.post("/admin/users/:id/freeze", adminGuard, async (req: Request, res: Res
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "not_found" }); return; }
 
+  // Freeze the account
   await db.update(usersTable).set({ status: "frozen" }).where(eq(usersTable.id, userId));
-  await audit("freeze", userId, { previousStatus: user.status }, reason);
 
-  logger.info({ userId, reason }, "Account frozen by admin");
-  res.json({ success: true, message: `Account ${user.username} frozen` });
+  // Auto-cancel all open/partial orders and refund locked balances
+  const openOrders = await db
+    .select()
+    .from(ordersTable)
+    .where(and(eq(ordersTable.userId, userId), or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial"))));
+
+  let cancelledCount = 0;
+  for (const order of openOrders) {
+    const [baseAsset, quoteAsset] = order.pair.split("/");
+    if (!baseAsset || !quoteAsset) continue;
+
+    const remaining = parseFloat(order.quantity) - parseFloat(order.filled);
+    const execPrice = parseFloat(order.price ?? "0");
+    const unlockAsset = order.side === "buy" ? quoteAsset : baseAsset;
+    const unlockAmount = order.side === "buy" ? remaining * execPrice : remaining;
+
+    // Refund locked funds
+    const [bal] = await db
+      .select()
+      .from(balancesTable)
+      .where(and(eq(balancesTable.userId, userId), eq(balancesTable.asset, unlockAsset)));
+
+    if (bal && unlockAmount > 0) {
+      await db.update(balancesTable).set({
+        available: (parseFloat(bal.available) + unlockAmount).toFixed(8),
+        locked: Math.max(0, parseFloat(bal.locked) - unlockAmount).toFixed(8),
+      }).where(eq(balancesTable.id, bal.id));
+    }
+
+    await db.update(ordersTable).set({ status: "cancelled", updatedAt: new Date() }).where(eq(ordersTable.id, order.id));
+    cancelledCount++;
+  }
+
+  await audit("freeze", userId, { previousStatus: user.status, cancelledOrders: cancelledCount }, reason);
+
+  logger.info({ userId, reason, cancelledOrders: cancelledCount }, "Account frozen by admin");
+  res.json({ success: true, message: `Account ${user.username} frozen. ${cancelledCount} open order(s) cancelled.` });
 });
 
 // POST /api/admin/users/:id/unfreeze
@@ -239,6 +280,13 @@ router.post("/admin/users/:id/balance-adjustment", adminGuard, async (req: Reque
 
   if (!asset || amount === undefined || !reason) {
     res.status(400).json({ error: "validation_error", message: "asset, amount, reason required" });
+    return;
+  }
+
+  // Verify user exists before any balance operations
+  const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!targetUser) {
+    res.status(404).json({ error: "not_found", message: `User ${userId} does not exist` });
     return;
   }
 
