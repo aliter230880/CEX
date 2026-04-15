@@ -22,6 +22,7 @@ type UserDetail = {
   depositAddress: string | null;
   balances: { asset: string; available: string; locked: string; network: string }[];
   orders: { id: number; pair: string; side: string; type: string; status: string; price: string | null; quantity: string; createdAt: string }[];
+  trades: { id: number; pair: string; side: string; price: string; quantity: string; total: string; fee: string; feeAsset: string; createdAt: string }[];
   transactions: { id: number; type: string; asset: string; network: string; amount: string; txHash: string | null; status: string; createdAt: string }[];
 };
 
@@ -175,11 +176,12 @@ export default function AdminUserDetail() {
         </div>
       )}
 
-      {/* Tabs: Balances / Orders / Transactions */}
+      {/* Tabs: Balances / Orders / Trades / Transactions */}
       <Tabs defaultValue="balances">
         <TabsList>
           <TabsTrigger value="balances">Balances ({user.balances.length})</TabsTrigger>
           <TabsTrigger value="orders">Orders ({user.orders.length})</TabsTrigger>
+          <TabsTrigger value="trades">Trades ({user.trades.length})</TabsTrigger>
           <TabsTrigger value="transactions">Transactions ({user.transactions.length})</TabsTrigger>
         </TabsList>
 
@@ -247,6 +249,46 @@ export default function AdminUserDetail() {
                   ))}
                   {!user.orders.length && (
                     <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No orders</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="trades">
+          <Card>
+            <CardContent className="pt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Pair</TableHead>
+                    <TableHead>Side</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Fee</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {user.trades.map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-semibold">{t.pair}</TableCell>
+                      <TableCell>
+                        <Badge variant={t.side === "buy" ? "default" : "secondary"} className={t.side === "buy" ? "bg-green-600" : ""}>
+                          {t.side}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">{parseFloat(t.price).toLocaleString(undefined, { maximumFractionDigits: 6 })}</TableCell>
+                      <TableCell className="text-right font-mono">{parseFloat(t.quantity).toFixed(6)}</TableCell>
+                      <TableCell className="text-right font-mono font-bold">{parseFloat(t.total).toFixed(4)}</TableCell>
+                      <TableCell className="text-right font-mono text-muted-foreground">{parseFloat(t.fee).toFixed(6)} {t.feeAsset}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                  {!user.trades.length && (
+                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No executed trades yet</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

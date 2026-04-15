@@ -3,6 +3,7 @@ import { usersTable } from "./users";
 
 export const adminAuditLogTable = pgTable("admin_audit_log", {
   id: serial("id").primaryKey(),
+  adminId: text("admin_id").notNull().default("admin"), // identifies which admin performed the action
   action: text("action").notNull(), // 'freeze' | 'unfreeze' | 'balance_adjustment' | 'escrow_key_reveal' | 'sweep'
   targetUserId: integer("target_user_id").references(() => usersTable.id),
   details: jsonb("details"), // { asset, amount, reason, txHash, ... }

@@ -7,6 +7,7 @@ import {
   usersTable,
   balancesTable,
   ordersTable,
+  tradesTable,
   cryptoTransactionsTable,
   depositAddressesTable,
   adminAuditLogTable,
@@ -37,8 +38,17 @@ function adminGuard(req: Request, res: Response, next: NextFunction): void {
 }
 
 // ── Audit log helper ───────────────────────────────────────────────────────
-async function audit(action: string, targetUserId: number | null, details: unknown, reason?: string) {
+// adminId is a stable identifier for the admin performing the action.
+// In a single-admin setup we use "admin"; extend this if multi-admin auth is added.
+async function audit(
+  action: string,
+  targetUserId: number | null,
+  details: unknown,
+  reason?: string,
+  adminId = "admin",
+) {
   await db.insert(adminAuditLogTable).values({
+    adminId,
     action,
     targetUserId,
     details: details as Record<string, unknown>,
@@ -170,9 +180,10 @@ router.get("/admin/users/:id", adminGuard, async (req: Request, res: Response): 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
   if (!user) { res.status(404).json({ error: "not_found" }); return; }
 
-  const [balances, orders, txs, depositAddr] = await Promise.all([
+  const [balances, orders, trades, txs, depositAddr] = await Promise.all([
     db.select().from(balancesTable).where(eq(balancesTable.userId, userId)),
     db.select().from(ordersTable).where(eq(ordersTable.userId, userId)).orderBy(desc(ordersTable.createdAt)).limit(50),
+    db.select().from(tradesTable).where(eq(tradesTable.userId, userId)).orderBy(desc(tradesTable.createdAt)).limit(50),
     db.select().from(cryptoTransactionsTable).where(eq(cryptoTransactionsTable.userId, userId)).orderBy(desc(cryptoTransactionsTable.createdAt)).limit(50),
     db.select().from(depositAddressesTable).where(eq(depositAddressesTable.userId, userId)),
   ]);
@@ -186,6 +197,7 @@ router.get("/admin/users/:id", adminGuard, async (req: Request, res: Response): 
     depositAddress: depositAddr[0]?.address ?? null,
     balances: balances.map((b) => ({ asset: b.asset, available: b.available, locked: b.locked, network: b.network })),
     orders: orders.map((o) => ({ id: o.id, pair: o.pair, side: o.side, type: o.type, status: o.status, price: o.price, quantity: o.quantity, createdAt: o.createdAt })),
+    trades: trades.map((t) => ({ id: t.id, pair: t.pair, side: t.side, price: t.price, quantity: t.quantity, total: t.total, fee: t.fee, feeAsset: t.feeAsset, createdAt: t.createdAt })),
     transactions: txs.map((t) => ({ id: t.id, type: t.type, asset: t.asset, network: t.network, amount: t.amount, txHash: t.txHash, status: t.status, createdAt: t.createdAt })),
   });
 });
@@ -240,8 +252,17 @@ router.post("/admin/users/:id/balance-adjustment", adminGuard, async (req: Reque
   const assetBal = assetBals.find((b) => b.asset === asset);
 
   if (assetBal) {
-    const newAvail = Math.max(0, parseFloat(assetBal.available) + adj);
-    await db.update(balancesTable).set({ available: newAvail.toFixed(8) }).where(eq(balancesTable.id, assetBal.id));
+    const currentAvail = parseFloat(assetBal.available);
+    // For debits: reject if the requested amount exceeds available balance
+    if (adj < 0 && Math.abs(adj) > currentAvail) {
+      res.status(400).json({
+        error: "insufficient_funds",
+        message: `Cannot debit ${Math.abs(adj)} ${asset}: only ${currentAvail.toFixed(8)} available`,
+      });
+      return;
+    }
+    const newAvail = (currentAvail + adj).toFixed(8);
+    await db.update(balancesTable).set({ available: newAvail }).where(eq(balancesTable.id, assetBal.id));
   } else if (adj > 0) {
     await db.insert(balancesTable).values({ userId, asset, available: adj.toFixed(8), locked: "0", network: "ETH" });
   } else {

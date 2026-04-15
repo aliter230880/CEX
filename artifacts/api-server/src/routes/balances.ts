@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, balancesTable } from "@workspace/db";
+import { db, balancesTable, usersTable } from "@workspace/db";
 import { DepositBody, WithdrawBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/session";
 
@@ -78,6 +78,12 @@ router.post("/balances/withdraw", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
     res.status(401).json({ error: "not_authenticated", message: "Not authenticated" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.status === "frozen") {
+    res.status(403).json({ error: "account_frozen", message: "Your account is suspended and cannot process withdrawals." });
     return;
   }
 
