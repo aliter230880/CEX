@@ -6,3 +6,4 @@ export * from "./trades";
 export * from "./klines";
 export * from "./deposit_addresses";
 export * from "./crypto_transactions";
+export * from "./admin_audit_log";

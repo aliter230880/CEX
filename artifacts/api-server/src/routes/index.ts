@@ -7,6 +7,7 @@ import tradesRouter from "./trades";
 import orderbookRouter from "./orderbook";
 import marketRouter from "./market";
 import walletRouter from "./wallet";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(tradesRouter);
 router.use(orderbookRouter);
 router.use(marketRouter);
 router.use(walletRouter);
+router.use(adminRouter);
 
 export default router;

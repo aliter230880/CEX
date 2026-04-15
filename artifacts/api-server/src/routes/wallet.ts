@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable } from "@workspace/db";
+import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../lib/session";
 import {
   generateDepositAddress,
@@ -98,6 +98,12 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
     res.status(401).json({ error: "not_authenticated", message: "Not authenticated" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.status === "frozen") {
+    res.status(403).json({ error: "account_frozen", message: "Your account is suspended and cannot process withdrawals." });
     return;
   }
 

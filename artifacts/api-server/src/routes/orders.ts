@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, ordersTable, balancesTable } from "@workspace/db";
+import { db, ordersTable, balancesTable, usersTable } from "@workspace/db";
 import { CreateOrderBody, GetOrdersQueryParams, CancelOrderParams } from "@workspace/api-zod";
 import { requireAuth } from "../lib/session";
 import { matchOrders } from "../lib/matching-engine";
@@ -53,6 +53,12 @@ router.post("/orders", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
     res.status(401).json({ error: "not_authenticated", message: "Not authenticated" });
+    return;
+  }
+
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.status === "frozen") {
+    res.status(403).json({ error: "account_frozen", message: "Your account is suspended and cannot place orders." });
     return;
   }
 

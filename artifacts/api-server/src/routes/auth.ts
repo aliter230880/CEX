@@ -54,6 +54,7 @@ router.post("/auth/register", async (req, res): Promise<void> => {
       id: user.id,
       email: user.email,
       username: user.username,
+      status: user.status,
       createdAt: user.createdAt,
     },
     message: "Registration successful",
@@ -82,6 +83,11 @@ router.post("/auth/login", async (req, res): Promise<void> => {
     return;
   }
 
+  if (user.status === "frozen") {
+    res.status(403).json({ error: "account_frozen", message: "Your account has been suspended. Please contact support." });
+    return;
+  }
+
   req.session.userId = user.id;
 
   res.json({
@@ -89,6 +95,7 @@ router.post("/auth/login", async (req, res): Promise<void> => {
       id: user.id,
       email: user.email,
       username: user.username,
+      status: user.status,
       createdAt: user.createdAt,
     },
     message: "Login successful",
