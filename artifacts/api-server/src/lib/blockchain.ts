@@ -1,10 +1,22 @@
 import { ethers } from "ethers";
 
-// Public RPC providers (no API key needed)
-const RPC_URLS: Record<string, string> = {
-  ETH: "https://eth.llamarpc.com",
-  BSC: "https://bsc-dataseed.binance.org",
-  POLYGON: "https://polygon-rpc.com",
+// Public RPC providers - multiple URLs per network for fallback
+const RPC_URLS: Record<string, string[]> = {
+  ETH: [
+    "https://cloudflare-eth.com",
+    "https://ethereum.publicnode.com",
+    "https://eth.llamarpc.com",
+  ],
+  BSC: [
+    "https://bsc-dataseed.binance.org",
+    "https://bsc-dataseed1.defibit.io",
+    "https://bsc.publicnode.com",
+  ],
+  POLYGON: [
+    "https://polygon-bor-rpc.publicnode.com",
+    "https://polygon.llamarpc.com",
+    "https://polygon-rpc.com",
+  ],
 };
 
 // USDT contract addresses per network
@@ -21,7 +33,7 @@ export const NATIVE_ASSET: Record<string, string> = {
   POLYGON: "POL",
 };
 
-// Minimal ERC20 ABI for balance checking and Transfer events
+// Minimal ERC20 ABI
 const ERC20_ABI = [
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
@@ -38,22 +50,35 @@ export function getRequiredConfirmations(network: string): number {
   return REQUIRED_CONFIRMATIONS[network] ?? 12;
 }
 
-const providers: Record<string, ethers.JsonRpcProvider> = {};
+// Keep one working provider per network
+const activeProviders: Record<string, ethers.JsonRpcProvider> = {};
 
 export function getProvider(network: string): ethers.JsonRpcProvider {
-  if (!providers[network]) {
-    const url = RPC_URLS[network];
-    if (!url) throw new Error(`Unsupported network: ${network}`);
-    providers[network] = new ethers.JsonRpcProvider(url);
-  }
-  return providers[network];
+  if (activeProviders[network]) return activeProviders[network];
+  const urls = RPC_URLS[network];
+  if (!urls || urls.length === 0) throw new Error(`Unsupported network: ${network}`);
+  // Start with first URL; deposit monitor will rotate if needed
+  const provider = new ethers.JsonRpcProvider(urls[0], undefined, { polling: false });
+  activeProviders[network] = provider;
+  return provider;
+}
+
+export function rotateProvider(network: string): ethers.JsonRpcProvider {
+  const urls = RPC_URLS[network];
+  if (!urls) throw new Error(`Unsupported network: ${network}`);
+  const current = activeProviders[network];
+  const currentUrl = current ? (current as { _getUrl?: () => string })._getUrl?.() : undefined;
+  const currentIndex = currentUrl ? urls.indexOf(currentUrl) : 0;
+  const nextIndex = (currentIndex + 1) % urls.length;
+  const provider = new ethers.JsonRpcProvider(urls[nextIndex], undefined, { polling: false });
+  activeProviders[network] = provider;
+  return provider;
 }
 
 export function getHDWallet(userId: number): ethers.HDNodeWallet {
   const mnemonic = process.env.WALLET_MNEMONIC;
   if (!mnemonic) throw new Error("WALLET_MNEMONIC is not set");
   const root = ethers.HDNodeWallet.fromPhrase(mnemonic);
-  // Same EVM address works on ETH, BSC, Polygon
   return root.deriveChild(userId);
 }
 
@@ -64,7 +89,8 @@ export function generateDepositAddress(userId: number): string {
 export function getHotWallet(): ethers.Wallet {
   const privateKey = process.env.HOT_WALLET_PRIVATE_KEY;
   if (!privateKey) throw new Error("HOT_WALLET_PRIVATE_KEY is not set");
-  return new ethers.Wallet(privateKey);
+  const pk = privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`;
+  return new ethers.Wallet(pk);
 }
 
 export async function getNativeBalance(address: string, network: string): Promise<bigint> {

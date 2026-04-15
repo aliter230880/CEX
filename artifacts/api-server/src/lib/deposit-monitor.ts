@@ -21,9 +21,12 @@ async function scanNetwork(network: string) {
   const provider = getProvider(network);
   let currentBlock: bigint;
   try {
-    currentBlock = BigInt(await provider.getBlockNumber());
+    currentBlock = BigInt(await Promise.race([
+      provider.getBlockNumber(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]));
   } catch {
-    return; // RPC unavailable, skip
+    return; // RPC unavailable or slow, skip this round
   }
 
   if (!lastScannedBlock[network]) {
