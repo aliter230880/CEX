@@ -57,12 +57,12 @@ async function audit(
 }
 
 // ── Admin password check helper ────────────────────────────────────────────
+// ADMIN_PASSWORD must be a bcrypt hash. ADMIN_PASSWORD_HASH is a legacy alias.
+// Plaintext comparison is intentionally not supported.
 async function verifyAdminPassword(password: string): Promise<boolean> {
-  const adminHash = process.env.ADMIN_PASSWORD_HASH;
-  const adminPlain = process.env.ADMIN_PASSWORD;
-  if (!adminHash && !adminPlain) return false;
-  if (adminHash) return bcrypt.compare(password, adminHash);
-  return password === adminPlain;
+  const adminHash = process.env.ADMIN_PASSWORD_HASH ?? process.env.ADMIN_PASSWORD;
+  if (!adminHash) return false;
+  return bcrypt.compare(password, adminHash);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ router.post("/admin/login", async (req: Request, res: Response): Promise<void> =
   }
 
   if (!process.env.ADMIN_PASSWORD_HASH && !process.env.ADMIN_PASSWORD) {
-    res.status(503).json({ error: "not_configured", message: "Admin password not configured" });
+    res.status(503).json({ error: "not_configured", message: "Admin password not configured. Set ADMIN_PASSWORD to a bcrypt hash." });
     return;
   }
 

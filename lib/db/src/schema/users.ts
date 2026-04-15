@@ -7,7 +7,7 @@ export const usersTable = pgTable("users", {
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
-  status: text("status").notNull().default("active"), // 'active' | 'frozen'
+  status: text("account_status").notNull().default("active"), // 'active' | 'frozen'
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
