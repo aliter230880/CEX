@@ -37,3 +37,8 @@ externalPort = 3000
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+ADMIN_PASSWORD = "$2b$12$KaZD8ignMUIPJ7pXoJ9Vp.nq9GXv8S9ybJ07TQV4rlBIobgLS3U8O"

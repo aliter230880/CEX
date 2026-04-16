@@ -61,12 +61,17 @@ async function audit(
 }
 
 // ── Admin password check helper ────────────────────────────────────────────
-// ADMIN_PASSWORD must be a bcrypt hash. ADMIN_PASSWORD_HASH is a legacy alias.
-// Plaintext comparison is intentionally not supported.
+// ADMIN_PASSWORD can be either a bcrypt hash ($2a$/$2b$) or a plain-text password.
+// ADMIN_PASSWORD_HASH is a legacy alias (always treated as bcrypt).
 async function verifyAdminPassword(password: string): Promise<boolean> {
-  const adminHash = process.env.ADMIN_PASSWORD_HASH ?? process.env.ADMIN_PASSWORD;
-  if (!adminHash) return false;
-  return bcrypt.compare(password, adminHash);
+  const stored = process.env.ADMIN_PASSWORD_HASH ?? process.env.ADMIN_PASSWORD;
+  if (!stored) return false;
+  // If it looks like a bcrypt hash, use bcrypt comparison
+  if (/^\$2[aby]\$/.test(stored)) {
+    return bcrypt.compare(password, stored);
+  }
+  // Otherwise treat as plain-text (direct comparison)
+  return password === stored;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
