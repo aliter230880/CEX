@@ -269,11 +269,16 @@ export async function scanEtherscanNetworks() {
     for (const depAddr of depositAddresses) {
       try {
         await scanAddressOnChain(network, chainId, depAddr, customContracts);
-        await delay(250); // ~4 addresses/sec stays well under 5 req/sec limit
+        // Each address makes 2 API calls (tokentx + txlist).
+        // Free plan limit = 5 req/sec. With 2 calls/address we wait 500ms
+        // to stay safely under 2 addr/sec = 4 req/sec.
+        await delay(500);
       } catch (err) {
         logger.warn({ err, network, address: depAddr.address }, "Etherscan scan error");
+        await delay(1000); // extra back-off on error
       }
     }
+    await delay(500); // gap between networks
   }
 }
 
