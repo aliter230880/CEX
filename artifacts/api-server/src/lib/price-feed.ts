@@ -1,6 +1,13 @@
-import { db, klinesTable, tradingPairsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { db, klinesTable, tradingPairsTable, customTokensTable } from "@workspace/db";
+import { eq, and, isNotNull } from "drizzle-orm";
+import { ethers } from "ethers";
 import { logger } from "./logger";
+
+// ABI for the LuxEx exchanger contract: getPrice(token) → uint256
+const LUXEX_ABI = ["function getPrice(address token) view returns (uint256)"];
+const POLYGON_RPC = "https://polygon-bor-rpc.publicnode.com";
+const USDT_POLYGON = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+const USDT_DECIMALS = 6;
 
 // Map our pairs to CoinGecko coin IDs
 const COINGECKO_IDS: Record<string, string> = {
@@ -243,6 +250,65 @@ function notifyPriceListeners(): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Custom token price resolution (manual + smart contract)
+// ---------------------------------------------------------------------------
+
+async function fetchCustomTokenPrices(): Promise<void> {
+  const tokens = await db
+    .select()
+    .from(customTokensTable)
+    .where(eq(customTokensTable.status, "active"));
+
+  for (const token of tokens) {
+    const pair = `${token.symbol}/USDT`;
+
+    // 1. Try reading from smart contract (LuxEx exchanger)
+    if (token.priceContractAddress) {
+      try {
+        const provider = new ethers.JsonRpcProvider(POLYGON_RPC, undefined, { polling: false });
+        const contract = new ethers.Contract(token.priceContractAddress, LUXEX_ABI, provider);
+        const rawPrice: bigint = await contract.getPrice(USDT_POLYGON);
+        if (rawPrice > 0n) {
+          const priceUsd = parseFloat(ethers.formatUnits(rawPrice, USDT_DECIMALS));
+          PRICE_CACHE[pair] = {
+            price: priceUsd,
+            change24h: 0,
+            changePercent24h: 0,
+            high24h: priceUsd * 1.02,
+            low24h: priceUsd * 0.98,
+            volume24h: 0,
+          };
+          // Update manual price in DB to reflect contract price
+          await db.update(customTokensTable)
+            .set({ manualPriceUsd: priceUsd.toFixed(10) })
+            .where(eq(customTokensTable.id, token.id));
+          logger.debug({ pair, priceUsd, source: "contract" }, "Custom token price updated from contract");
+          continue;
+        }
+      } catch (err) {
+        logger.warn({ pair, err }, "Failed to read price from contract, falling back to manual");
+      }
+    }
+
+    // 2. Use manually set price from DB
+    if (token.manualPriceUsd) {
+      const priceUsd = parseFloat(token.manualPriceUsd);
+      if (!isNaN(priceUsd) && priceUsd > 0) {
+        PRICE_CACHE[pair] = {
+          price: priceUsd,
+          change24h: 0,
+          changePercent24h: 0,
+          high24h: priceUsd * 1.02,
+          low24h: priceUsd * 0.98,
+          volume24h: 0,
+        };
+        logger.debug({ pair, priceUsd, source: "manual" }, "Custom token price loaded from DB");
+      }
+    }
+  }
+}
+
 let feedInterval: NodeJS.Timeout | null = null;
 
 export async function startPriceFeed(): Promise<void> {
@@ -255,6 +321,13 @@ export async function startPriceFeed(): Promise<void> {
     logger.info({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "CoinGecko prices loaded");
   } catch (err) {
     logger.warn({ err }, "Initial CoinGecko price fetch failed");
+  }
+
+  // Load custom token prices immediately
+  try {
+    await fetchCustomTokenPrices();
+  } catch (err) {
+    logger.warn({ err }, "Initial custom token price fetch failed");
   }
 
   // Sync klines in background (runs once, takes a while due to rate limits)
@@ -277,6 +350,13 @@ export async function startPriceFeed(): Promise<void> {
       logger.warn({ err }, "CoinGecko price update failed");
     }
     await updateLatestCandles();
+    // Update custom token prices (from smart contract or manual DB value)
+    try {
+      await fetchCustomTokenPrices();
+      notifyPriceListeners();
+    } catch (err) {
+      logger.warn({ err }, "Custom token price update failed");
+    }
   }, 60_000);
 
   logger.info("Price feed running — updating every 60s from CoinGecko");

@@ -29,6 +29,7 @@ import {
   SUPPORTED_DEPOSIT_ASSETS,
 } from "../lib/blockchain";
 import { logger } from "../lib/logger";
+import { generateKlines } from "../lib/market-data";
 
 const router = Router();
 
@@ -528,30 +529,134 @@ router.patch("/admin/trading-pairs/:id", adminGuard, async (req: Request, res: R
 // GET /api/admin/tokens
 router.get("/admin/tokens", adminGuard, async (_req: Request, res: Response): Promise<void> => {
   const tokens = await db.select().from(customTokensTable).orderBy(desc(customTokensTable.createdAt));
-  res.json({ tokens });
+  // Enrich with pair existence info
+  const pairs = await db.select({ symbol: tradingPairsTable.symbol }).from(tradingPairsTable);
+  const pairSet = new Set(pairs.map(p => p.symbol));
+  const enriched = tokens.map(t => ({
+    ...t,
+    hasPair: pairSet.has(`${t.symbol}/USDT`) || pairSet.has(`${t.symbol}/ETH`) || pairSet.has(`${t.symbol}/BNB`),
+    pairSymbol: pairSet.has(`${t.symbol}/USDT`) ? `${t.symbol}/USDT` :
+                pairSet.has(`${t.symbol}/ETH`) ? `${t.symbol}/ETH` :
+                pairSet.has(`${t.symbol}/BNB`) ? `${t.symbol}/BNB` : null,
+  }));
+  res.json({ tokens: enriched });
+});
+
+// POST /api/admin/tokens/:id/create-pair  — create trading pair for existing listed token
+router.post("/admin/tokens/:id/create-pair", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const [token] = await db.select().from(customTokensTable).where(eq(customTokensTable.id, id));
+  if (!token) { res.status(404).json({ error: "not_found" }); return; }
+
+  const { quoteAsset = "USDT", manualPriceUsd } = req.body as { quoteAsset?: string; manualPriceUsd?: number };
+  const pairSymbol = `${token.symbol}/${quoteAsset.toUpperCase()}`;
+  const existing = await db.select().from(tradingPairsTable).where(eq(tradingPairsTable.symbol, pairSymbol));
+  if (existing.length > 0) {
+    res.json({ success: true, pairCreated: false, pair: pairSymbol, message: "Pair already exists" });
+    return;
+  }
+
+  await db.insert(tradingPairsTable).values({
+    symbol: pairSymbol,
+    baseAsset: token.symbol,
+    quoteAsset: quoteAsset.toUpperCase(),
+    status: "active",
+    network: token.network,
+    minOrderSize: "1",
+    tickSize: "0.0001",
+    stepSize: "1",
+  });
+
+  // Set manual price if provided
+  if (manualPriceUsd) {
+    await db.update(customTokensTable).set({ manualPriceUsd: String(manualPriceUsd) }).where(eq(customTokensTable.id, id));
+  }
+
+  try {
+    await generateKlines(pairSymbol, "30m", 200);
+    await generateKlines(pairSymbol, "1h", 200);
+    await generateKlines(pairSymbol, "4h", 100);
+    await generateKlines(pairSymbol, "1d", 60);
+  } catch (err) {
+    logger.warn({ pair: pairSymbol, err }, "Failed to generate seed klines for create-pair");
+  }
+
+  await audit("token_pair_create", null, { tokenId: id, pairSymbol });
+  res.json({ success: true, pairCreated: true, pair: pairSymbol });
 });
 
 // POST /api/admin/tokens
 router.post("/admin/tokens", adminGuard, async (req: Request, res: Response): Promise<void> => {
-  const { symbol, name, network, contractAddress, decimals, iconUrl } = req.body as {
+  const { symbol, name, network, contractAddress, decimals, iconUrl, manualPriceUsd, quoteAsset, priceContractAddress } = req.body as {
     symbol: string; name: string; network: string; contractAddress: string;
-    decimals?: number; iconUrl?: string;
+    decimals?: number; iconUrl?: string; manualPriceUsd?: number; quoteAsset?: string; priceContractAddress?: string;
   };
   if (!symbol || !name || !network || !contractAddress) {
     res.status(400).json({ error: "validation_error", message: "symbol, name, network, contractAddress required" });
     return;
   }
+
+  const sym = symbol.toUpperCase();
+  const quote = (quoteAsset ?? "USDT").toUpperCase();
+
   const [token] = await db.insert(customTokensTable).values({
-    symbol: symbol.toUpperCase(),
+    symbol: sym,
     name,
     network,
     contractAddress,
     decimals: decimals ?? 18,
     iconUrl: iconUrl ?? null,
     status: "active",
+    manualPriceUsd: manualPriceUsd ? String(manualPriceUsd) : null,
+    priceContractAddress: priceContractAddress ?? null,
   }).returning();
-  await audit("token_listing_add", null, { symbol, network, contractAddress });
-  res.json({ success: true, token });
+
+  // Auto-create trading pair if it doesn't exist yet
+  const pairSymbol = `${sym}/${quote}`;
+  const existing = await db.select().from(tradingPairsTable).where(eq(tradingPairsTable.symbol, pairSymbol));
+  if (existing.length === 0) {
+    await db.insert(tradingPairsTable).values({
+      symbol: pairSymbol,
+      baseAsset: sym,
+      quoteAsset: quote,
+      status: "active",
+      network,
+      minOrderSize: "1",
+      tickSize: "0.0001",
+      stepSize: "1",
+    });
+
+    // Generate seed klines for the new pair using initial price
+    const seedPrice = manualPriceUsd ?? 0.01;
+    try {
+      await generateKlines(pairSymbol, "30m", 200);
+      await generateKlines(pairSymbol, "1h", 200);
+      await generateKlines(pairSymbol, "4h", 100);
+      await generateKlines(pairSymbol, "1d", 60);
+      logger.info({ pair: pairSymbol, seedPrice }, "Auto-created trading pair with seed klines");
+    } catch (err) {
+      logger.warn({ pair: pairSymbol, err }, "Failed to generate seed klines");
+    }
+  }
+
+  await audit("token_listing_add", null, { symbol: sym, network, contractAddress, pairSymbol });
+  res.json({ success: true, token, pairCreated: existing.length === 0, pair: pairSymbol });
+});
+
+// PATCH /api/admin/tokens/:id/price  — update manual price
+router.patch("/admin/tokens/:id/price", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { manualPriceUsd, priceContractAddress } = req.body as { manualPriceUsd?: number; priceContractAddress?: string };
+  if (!manualPriceUsd && !priceContractAddress) {
+    res.status(400).json({ error: "validation_error", message: "manualPriceUsd or priceContractAddress required" });
+    return;
+  }
+  const updates: Record<string, string | null> = {};
+  if (manualPriceUsd !== undefined) updates.manualPriceUsd = String(manualPriceUsd);
+  if (priceContractAddress !== undefined) updates.priceContractAddress = priceContractAddress;
+  await db.update(customTokensTable).set(updates).where(eq(customTokensTable.id, id));
+  await audit("token_price_update", null, { id, manualPriceUsd, priceContractAddress });
+  res.json({ success: true });
 });
 
 // PATCH /api/admin/tokens/:id

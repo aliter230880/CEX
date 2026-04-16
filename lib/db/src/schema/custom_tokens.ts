@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
 
 export const customTokensTable = pgTable("custom_tokens", {
   id: serial("id").primaryKey(),
@@ -9,6 +9,8 @@ export const customTokensTable = pgTable("custom_tokens", {
   decimals: integer("decimals").notNull().default(18),
   status: text("status").notNull().default("active"),
   iconUrl: text("icon_url"),
+  manualPriceUsd: numeric("manual_price_usd", { precision: 28, scale: 10 }),
+  priceContractAddress: text("price_contract_address"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
