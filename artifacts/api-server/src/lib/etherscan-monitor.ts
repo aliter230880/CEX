@@ -192,6 +192,129 @@ async function scanAddressOnChain(
   }
 }
 
+// ── Moralis BSC scanner ─────────────────────────────────────────────────────
+const MORALIS_BASE = "https://deep-index.moralis.io/api/v2.2";
+
+interface MoralisTokenTx {
+  transaction_hash: string;
+  from_address:     string;
+  to_address:       string;
+  token_symbol:     string;
+  token_decimals:   string;
+  value_decimal:    string;
+  block_number:     string;
+  possible_spam:    boolean;
+}
+
+interface MoralisNativeTx {
+  hash:             string;
+  from_address:     string;
+  to_address:       string;
+  value:            string; // wei
+  block_number:     string;
+  receipt_status:   string;
+}
+
+async function moralisFetch<T>(path: string, params: Record<string, string>): Promise<T[]> {
+  const apiKey = process.env.MORALIS_API_KEY;
+  if (!apiKey) throw new Error("MORALIS_API_KEY not set");
+
+  const qs = new URLSearchParams(params).toString();
+  const url = `${MORALIS_BASE}${path}?${qs}`;
+  const res = await fetch(url, {
+    headers: { "X-API-Key": apiKey },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`Moralis API HTTP ${res.status}`);
+  const json = await res.json() as { result: T[] };
+  return Array.isArray(json.result) ? json.result : [];
+}
+
+/**
+ * Scan a single deposit address on BSC using Moralis API.
+ * Used when MORALIS_API_KEY is set and BSCSCAN_API_KEY is not available.
+ */
+async function scanAddressOnBscMoralis(
+  depAddr: { userId: number; address: string },
+) {
+  const addr      = depAddr.address.toLowerCase();
+  const required  = getRequiredConfirmations("BSC");
+  const fromBlock = lastProcessedBlock[`BSC:${addr}`] ?? 0;
+  const fromBlockStr = String(fromBlock);
+
+  // ── ERC-20 token transfers ──────────────────────────────────────────────
+  let tokenTxs: MoralisTokenTx[] = [];
+  try {
+    tokenTxs = await moralisFetch<MoralisTokenTx>(
+      `/${depAddr.address}/erc20/transfers`,
+      { chain: "bsc", from_block: fromBlockStr, limit: "200", order: "ASC" },
+    );
+  } catch (err) {
+    logger.warn({ err, address: addr }, "Moralis BSC tokentx fetch failed");
+  }
+
+  let maxBlock = fromBlock;
+
+  for (const tx of tokenTxs) {
+    if (tx.possible_spam) continue;
+    if (tx.to_address.toLowerCase() !== addr) continue;
+
+    const amt = parseFloat(tx.value_decimal);
+    if (isNaN(amt) || amt <= 0) continue;
+
+    const blockNum = parseInt(tx.block_number, 10);
+    if (blockNum > maxBlock) maxBlock = blockNum;
+
+    // Moralis doesn't give confirmations — derive from current block (approximation)
+    const currentBlock = lastProcessedBlock[`BSC:__head`] ?? blockNum + required + 1;
+    const confs = Math.max(0, currentBlock - blockNum);
+    if (confs < required) continue;
+
+    await processTx(
+      depAddr.userId, tx.token_symbol, "BSC",
+      tx.value_decimal, tx.transaction_hash,
+      tx.from_address, tx.to_address, confs,
+    );
+  }
+
+  // ── Native BNB transfers ────────────────────────────────────────────────
+  let nativeTxs: MoralisNativeTx[] = [];
+  try {
+    nativeTxs = await moralisFetch<MoralisNativeTx>(
+      `/${depAddr.address}`,
+      { chain: "bsc", from_block: fromBlockStr, limit: "200", order: "ASC" },
+    );
+  } catch (err) {
+    logger.warn({ err, address: addr }, "Moralis BSC native fetch failed");
+  }
+
+  for (const tx of nativeTxs) {
+    if (tx.receipt_status === "0") continue;                     // failed tx
+    if (tx.to_address.toLowerCase() !== addr) continue;         // not incoming
+    if (!tx.value || tx.value === "0") continue;
+
+    const amount = ethers.formatEther(tx.value);
+    if (parseFloat(amount) < 0.000001) continue;
+
+    const blockNum = parseInt(tx.block_number, 10);
+    if (blockNum > maxBlock) maxBlock = blockNum;
+
+    const currentBlock = lastProcessedBlock[`BSC:__head`] ?? blockNum + required + 1;
+    const confs = Math.max(0, currentBlock - blockNum);
+    if (confs < required) continue;
+
+    await processTx(
+      depAddr.userId, "BNB", "BSC",
+      amount, tx.hash, tx.from_address, tx.to_address, confs,
+    );
+  }
+
+  // Advance watermark
+  if (maxBlock > fromBlock) {
+    lastProcessedBlock[`BSC:${addr}`] = maxBlock + 1;
+  }
+}
+
 async function processTx(
   userId:      number,
   asset:       string,
@@ -289,7 +412,7 @@ export async function scanEtherscanNetworks() {
     });
   }
 
-  // BSC via BscScan (only if BSCSCAN_API_KEY is set)
+  // BSC via BscScan API (only if BSCSCAN_API_KEY is set)
   if (process.env.BSCSCAN_API_KEY) {
     networksToScan.push({
       network: "BSC",
@@ -312,6 +435,31 @@ export async function scanEtherscanNetworks() {
     }
     await delay(1000); // gap between networks
   }
+
+  // BSC via Moralis API (if MORALIS_API_KEY set and BSCSCAN_API_KEY is not)
+  if (process.env.MORALIS_API_KEY && !process.env.BSCSCAN_API_KEY) {
+    // Fetch current BSC block head so we can calculate confirmations
+    try {
+      const headRes = await fetch(
+        `${MORALIS_BASE}/block/latest?chain=bsc`,
+        { headers: { "X-API-Key": process.env.MORALIS_API_KEY }, signal: AbortSignal.timeout(5_000) },
+      );
+      if (headRes.ok) {
+        const headJson = await headRes.json() as { number?: string };
+        if (headJson.number) lastProcessedBlock["BSC:__head"] = parseInt(headJson.number, 10);
+      }
+    } catch { /* ignore */ }
+
+    for (const depAddr of depositAddresses) {
+      try {
+        await scanAddressOnBscMoralis(depAddr);
+        await delay(500); // Moralis free: 5 req/sec — one address = 2 calls
+      } catch (err) {
+        logger.warn({ err, address: depAddr.address }, "Moralis BSC scan error");
+        await delay(2000);
+      }
+    }
+  }
 }
 
 // Track interval handle
@@ -324,10 +472,12 @@ export function startEtherscanMonitor() {
     return;
   }
 
-  const hasBscScan = !!process.env.BSCSCAN_API_KEY;
+  const hasBscScan  = !!process.env.BSCSCAN_API_KEY;
+  const hasMoralis  = !!process.env.MORALIS_API_KEY;
+  const bscProvider = hasBscScan ? "BscScan" : hasMoralis ? "Moralis" : null;
   logger.info(
-    { bscEnabled: hasBscScan },
-    `Starting explorer deposit monitor (ETH + POLYGON${hasBscScan ? " + BSC" : " — BSC skipped (no BSCSCAN_API_KEY)"})`,
+    { bscEnabled: !!(hasBscScan || hasMoralis) },
+    `Starting explorer deposit monitor (ETH + POLYGON${bscProvider ? ` + BSC via ${bscProvider}` : " — BSC skipped (no BSCSCAN_API_KEY / MORALIS_API_KEY)"})`,
   );
 
   const run = async () => {
