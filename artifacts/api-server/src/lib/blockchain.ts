@@ -80,16 +80,32 @@ export function getRequiredConfirmations(network: string): number {
   return REQUIRED_CONFIRMATIONS[network] ?? 12;
 }
 
+// Explicit chain IDs — prevents auto-detection RPC call on provider creation
+const CHAIN_IDS: Record<string, number> = {
+  ETH:     1,
+  BSC:    56,
+  POLYGON: 137,
+};
+
 // Track active provider and its index per network
 const activeProviders: Record<string, ethers.JsonRpcProvider> = {};
 const activeProviderIndex: Record<string, number> = {};
+
+function makeProvider(url: string, network: string): ethers.JsonRpcProvider {
+  const chainId = CHAIN_IDS[network];
+  const staticNet = chainId ? ethers.Network.from(chainId) : undefined;
+  return new ethers.JsonRpcProvider(url, staticNet, {
+    polling: false,
+    batchMaxCount: 1,   // disable JSON-RPC batching — prevents "eth_getLogs in batch" rate limits
+  });
+}
 
 export function getProvider(network: string): ethers.JsonRpcProvider {
   if (activeProviders[network]) return activeProviders[network];
   const urls = RPC_URLS[network];
   if (!urls || urls.length === 0) throw new Error(`Unsupported network: ${network}`);
   activeProviderIndex[network] = 0;
-  const provider = new ethers.JsonRpcProvider(urls[0], undefined, { polling: false });
+  const provider = makeProvider(urls[0], network);
   activeProviders[network] = provider;
   return provider;
 }
@@ -100,7 +116,7 @@ export function rotateProvider(network: string): ethers.JsonRpcProvider {
   const currentIndex = activeProviderIndex[network] ?? 0;
   const nextIndex = (currentIndex + 1) % urls.length;
   activeProviderIndex[network] = nextIndex;
-  const provider = new ethers.JsonRpcProvider(urls[nextIndex], undefined, { polling: false });
+  const provider = makeProvider(urls[nextIndex], network);
   activeProviders[network] = provider;
   return provider;
 }
