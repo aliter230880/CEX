@@ -226,3 +226,21 @@
 .bg-destructive {
   background-color: var(--color-destructive);
 }
+
+@keyframes flash-up {
+  0%   { background-color: hsl(var(--success) / 0.35); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-down {
+  0%   { background-color: hsl(var(--destructive) / 0.35); }
+  100% { background-color: transparent; }
+}
+
+.price-flash-up {
+  animation: flash-up 0.8s ease-out forwards;
+}
+
+.price-flash-down {
+  animation: flash-down 0.8s ease-out forwards;
+}

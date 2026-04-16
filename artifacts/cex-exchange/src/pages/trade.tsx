@@ -25,6 +25,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { PriceChart } from "@/components/PriceChart";
+import { useFlashOnChange } from "@/hooks/use-flash-on-change";
 
 const orderSchema = z.object({
   type: z.enum(["limit", "market"]),
@@ -53,9 +54,11 @@ export default function Trade() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: ticker } = useGetTicker(apiPair, { query: { queryKey: getGetTickerQueryKey(apiPair), enabled: !!apiPair, refetchInterval: 3000 } });
+  const { data: ticker } = useGetTicker(apiPair, { query: { queryKey: getGetTickerQueryKey(apiPair), enabled: !!apiPair, refetchInterval: 60_000 } });
   const { data: orderBook } = useGetOrderBook(apiPair, { depth: 20 }, { query: { queryKey: getGetOrderBookQueryKey(apiPair, { depth: 20 }), enabled: !!apiPair, refetchInterval: 3000 } });
   const { data: recentTrades } = useGetRecentTrades(apiPair, { limit: 50 }, { query: { queryKey: getGetRecentTradesQueryKey(apiPair, { limit: 50 }), enabled: !!apiPair, refetchInterval: 3000 } });
+
+  const priceFlash = useFlashOnChange(ticker?.lastPrice);
   const { data: openOrders } = useGetOrders({ pair, status: "open" }, { query: { queryKey: getGetOrdersQueryKey({ pair, status: "open" }), enabled: !!user && !!pair } });
   const { data: balances } = useGetBalances({ query: { queryKey: getGetBalancesQueryKey(), enabled: !!user } });
 
@@ -106,7 +109,11 @@ export default function Trade() {
           <a href="#" className="text-sm text-primary hover:underline">Market Info</a>
         </div>
         <div className="flex flex-col">
-          <span className={`text-xl font-bold font-mono ${isPositive ? 'text-success' : 'text-destructive'}`}>
+          <span
+            className={`text-xl font-bold font-mono px-1 rounded ${isPositive ? 'text-success' : 'text-destructive'} ${
+              priceFlash === "up" ? "price-flash-up" : priceFlash === "down" ? "price-flash-down" : ""
+            }`}
+          >
             {ticker?.lastPrice ? Number(ticker.lastPrice).toLocaleString() : '---'}
           </span>
           <span className="text-sm text-muted-foreground">${ticker?.lastPrice ? Number(ticker.lastPrice).toLocaleString() : '---'}</span>
@@ -204,7 +211,11 @@ export default function Trade() {
             </div>
 
             <div className="py-2 px-2 border-y flex items-center justify-between bg-muted/20">
-              <span className={`text-lg font-bold ${isPositive ? 'text-success' : 'text-destructive'}`}>
+              <span
+                className={`text-lg font-bold px-1 rounded ${isPositive ? 'text-success' : 'text-destructive'} ${
+                  priceFlash === "up" ? "price-flash-up" : priceFlash === "down" ? "price-flash-down" : ""
+                }`}
+              >
                 {ticker?.lastPrice ? Number(ticker.lastPrice).toLocaleString() : '---'}
               </span>
             </div>

@@ -1,16 +1,21 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useGetTradingPairs, useGetTicker } from "@workspace/api-client-react";
+import { useGetTradingPairs, useGetTicker, getGetTickerQueryKey } from "@workspace/api-client-react";
 import { ArrowRight, Shield, Zap, Globe, TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useFlashOnChange } from "@/hooks/use-flash-on-change";
 
 function PairTicker({ symbol }: { symbol: string }) {
-  const { data } = useGetTicker(symbol.replace("/", "_"));
+  const apiPair = symbol.replace("/", "-");
+  const { data } = useGetTicker(apiPair, { query: { queryKey: getGetTickerQueryKey(apiPair) } });
+  const flash = useFlashOnChange(data?.lastPrice);
   if (!data) return null;
   const change = parseFloat(data.priceChangePercent ?? "0");
   const price = parseFloat(data.lastPrice ?? "0");
   return (
-    <div className="flex items-center gap-3 px-6 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm min-w-[160px]">
+    <div className={`flex items-center gap-3 px-6 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm min-w-[160px] ${
+      flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""
+    }`}>
       <span className="text-sm font-semibold text-white/80">{symbol}</span>
       <div className="text-right">
         <div className="text-sm font-bold text-white">

@@ -2,6 +2,8 @@ import { Router } from "express";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { db, tradingPairsTable, klinesTable, tradesTable } from "@workspace/db";
 import { getTickerData, getOrderBookData, getSeedPrice } from "../lib/market-data";
+import { subscribeToPriceUpdates } from "../lib/price-feed";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -108,6 +110,47 @@ router.get("/market/summary", async (_req, res): Promise<void> => {
     totalTrades24h: recentTrades.length,
     topGainer: sorted[0] ?? null,
     topLoser: sorted[sorted.length - 1] ?? null,
+  });
+});
+
+router.get("/market/stream", async (req, res): Promise<void> => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const pairs = await db
+    .select()
+    .from(tradingPairsTable)
+    .where(eq(tradingPairsTable.status, "active"));
+
+  const sendTickers = async () => {
+    try {
+      const tickers = await Promise.all(pairs.map((p) => getTickerData(p.symbol)));
+      res.write(`data: ${JSON.stringify({ type: "tickers", payload: tickers })}\n\n`);
+    } catch (err) {
+      logger.warn({ err }, "SSE ticker broadcast failed");
+    }
+  };
+
+  await sendTickers();
+
+  const unsubscribe = subscribeToPriceUpdates(() => {
+    sendTickers().catch(() => {});
+  });
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(": heartbeat\n\n");
+    } catch {
+      // client disconnected
+    }
+  }, 25_000);
+
+  req.on("close", () => {
+    unsubscribe();
+    clearInterval(heartbeat);
   });
 });
 

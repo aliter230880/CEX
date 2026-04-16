@@ -216,6 +216,33 @@ async function updateLatestCandles(): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Pub/sub for SSE clients
+// ---------------------------------------------------------------------------
+
+type PriceUpdateListener = (snapshot: Record<string, PriceStats>) => void;
+
+const priceListeners = new Set<PriceUpdateListener>();
+
+export function subscribeToPriceUpdates(listener: PriceUpdateListener): () => void {
+  priceListeners.add(listener);
+  return () => {
+    priceListeners.delete(listener);
+  };
+}
+
+function notifyPriceListeners(): void {
+  if (priceListeners.size === 0) return;
+  const snapshot = { ...PRICE_CACHE };
+  for (const listener of priceListeners) {
+    try {
+      listener(snapshot);
+    } catch {
+      // ignore individual listener errors
+    }
+  }
+}
+
 let feedInterval: NodeJS.Timeout | null = null;
 
 export async function startPriceFeed(): Promise<void> {
@@ -224,6 +251,7 @@ export async function startPriceFeed(): Promise<void> {
   // Load prices immediately
   try {
     await fetchCoinGeckoMarkets();
+    notifyPriceListeners();
     logger.info({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "CoinGecko prices loaded");
   } catch (err) {
     logger.warn({ err }, "Initial CoinGecko price fetch failed");
@@ -244,6 +272,7 @@ export async function startPriceFeed(): Promise<void> {
   feedInterval = setInterval(async () => {
     try {
       await fetchCoinGeckoMarkets();
+      notifyPriceListeners();
     } catch (err) {
       logger.warn({ err }, "CoinGecko price update failed");
     }

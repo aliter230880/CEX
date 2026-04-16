@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, ProtectedRoute } from "@/lib/auth";
 import { AdminAuthProvider, AdminProtectedRoute } from "@/lib/admin-auth";
+import { usePriceStream } from "@/hooks/use-price-stream";
 import { Layout } from "@/components/layout";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
@@ -83,12 +84,18 @@ function Router() {
   );
 }
 
+function LivePriceStream() {
+  usePriceStream();
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
           <AdminAuthProvider>
+            <LivePriceStream />
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
               <Router />
             </WouterRouter>

@@ -5,10 +5,44 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Search, TrendingUp, TrendingDown, Activity, BarChart2 } from "lucide-react";
 import { useState } from "react";
+import { useFlashOnChange } from "@/hooks/use-flash-on-change";
+
+function FlashPriceCell({ value }: { value: string | undefined }) {
+  const flash = useFlashOnChange(value);
+  return (
+    <TableCell
+      className={`text-right font-mono transition-colors rounded ${
+        flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""
+      }`}
+    >
+      ${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+    </TableCell>
+  );
+}
+
+function FlashChangeCell({ value }: { value: string | undefined }) {
+  const flash = useFlashOnChange(value);
+  const change = Number(value);
+  const isPositive = change >= 0;
+  return (
+    <TableCell
+      className={`text-right font-mono rounded ${isPositive ? "text-success" : "text-destructive"} ${
+        flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""
+      }`}
+    >
+      {isPositive ? "+" : ""}
+      {change.toFixed(2)}%
+    </TableCell>
+  );
+}
 
 export default function Home() {
-  const { data: summary } = useGetMarketSummary({ query: { queryKey: getGetMarketSummaryQueryKey(), refetchInterval: 5000 } });
-  const { data: tickers } = useGetAllTickers({ query: { queryKey: getGetAllTickersQueryKey(), refetchInterval: 3000 } });
+  const { data: summary } = useGetMarketSummary({
+    query: { queryKey: getGetMarketSummaryQueryKey(), refetchInterval: 60_000 },
+  });
+  const { data: tickers } = useGetAllTickers({
+    query: { queryKey: getGetAllTickersQueryKey(), refetchInterval: 60_000 },
+  });
   const [search, setSearch] = useState("");
 
   const filteredTickers = tickers?.filter(t => t.pair.toLowerCase().includes(search.toLowerCase())) || [];
@@ -93,26 +127,26 @@ export default function Home() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTickers.map((ticker) => {
-                const change = Number(ticker.priceChangePercent);
-                const isPositive = change >= 0;
-                return (
-                  <TableRow key={ticker.pair} className="group">
-                    <TableCell>
-                      <Link href={`/trade/${ticker.pair.replace("/", "_")}`} className="font-bold hover:text-primary transition-colors">
-                        {ticker.pair}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">${Number(ticker.lastPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</TableCell>
-                    <TableCell className={`text-right font-mono ${isPositive ? 'text-success' : 'text-destructive'}`}>
-                      {isPositive ? '+' : ''}{change.toFixed(2)}%
-                    </TableCell>
-                    <TableCell className="text-right font-mono">${Number(ticker.highPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</TableCell>
-                    <TableCell className="text-right font-mono">${Number(ticker.lowPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</TableCell>
-                    <TableCell className="text-right font-mono">{Number(ticker.volume).toLocaleString(undefined, { maximumFractionDigits: 2 })}</TableCell>
-                  </TableRow>
-                );
-              })}
+              {filteredTickers.map((ticker) => (
+                <TableRow key={ticker.pair} className="group">
+                  <TableCell>
+                    <Link href={`/trade/${ticker.pair.replace("/", "_")}`} className="font-bold hover:text-primary transition-colors">
+                      {ticker.pair}
+                    </Link>
+                  </TableCell>
+                  <FlashPriceCell value={ticker.lastPrice} />
+                  <FlashChangeCell value={ticker.priceChangePercent} />
+                  <TableCell className="text-right font-mono">
+                    ${Number(ticker.highPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    ${Number(ticker.lowPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {Number(ticker.volume).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </TableCell>
+                </TableRow>
+              ))}
               {filteredTickers.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
