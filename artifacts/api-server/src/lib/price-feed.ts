@@ -1,5 +1,5 @@
 import { db, klinesTable, tradingPairsTable, customTokensTable } from "@workspace/db";
-import { eq, and, isNotNull } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ethers } from "ethers";
 import { logger } from "./logger";
 
