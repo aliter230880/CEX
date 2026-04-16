@@ -298,15 +298,15 @@ export async function scanEtherscanNetworks() {
       try {
         await scanAddressOnChain(network, fetchFn, depAddr);
         // Each address makes 2 API calls (tokentx + txlist).
-        // Free plan limit = 5 req/sec. With 2 calls/address we wait 500ms
-        // to stay safely under 2 addr/sec = 4 req/sec.
-        await delay(500);
+        // Free plan limit = 5 req/sec. We wait 1000ms between addresses
+        // to stay well under the rate limit (2 req/sec).
+        await delay(1000);
       } catch (err) {
         logger.warn({ err, network, address: depAddr.address }, "Explorer scan error");
-        await delay(1000); // extra back-off on error
+        await delay(2000); // extra back-off on error
       }
     }
-    await delay(500); // gap between networks
+    await delay(1000); // gap between networks
   }
 }
 
