@@ -94,54 +94,186 @@ const TICKERS = [
 ];
 
 /* ── Floating token logos ─────────────────────────────────────────── */
+/* ── 3D floating token cards ─────────────────────────────────────── */
 const FLOATING_TOKENS = [
-  { id: "btc", symbol: "BTC", size: 80, x: "8%",  y: "18%", delay: 0,    duration: 9  },
-  { id: "eth", symbol: "ETH", size: 64, x: "88%", y: "12%", delay: 1.5,  duration: 11 },
-  { id: "bnb", symbol: "BNB", size: 56, x: "75%", y: "55%", delay: 0.8,  duration: 8  },
-  { id: "sol", symbol: "SOL", size: 72, x: "5%",  y: "62%", delay: 2.2,  duration: 13 },
-  { id: "pol", symbol: "POL", size: 48, x: "62%", y: "80%", delay: 0.3,  duration: 10 },
-  { id: "usd", symbol: "USDT",size: 52, x: "18%", y: "82%", delay: 1.8,  duration: 12 },
+  { id: "btc",  symbol: "BTC",  price: "83,412", change: "+2.34%", up: true,  w: 140, h: 160, x: "4%",  y: "14%", delay: 0,    duration: 10, rx: 12,  ry: -18, rz: -6  },
+  { id: "eth",  symbol: "ETH",  price: "3,194",  change: "+1.87%", up: true,  w: 130, h: 150, x: "83%", y: "8%",  delay: 1.5,  duration: 12, rx: -10, ry: 20,  rz: 8   },
+  { id: "bnb",  symbol: "BNB",  price: "608",    change: "-0.62%", up: false, w: 120, h: 138, x: "79%", y: "52%", delay: 0.8,  duration: 9,  rx: 8,   ry: -22, rz: -4  },
+  { id: "sol",  symbol: "SOL",  price: "175.2",  change: "+4.15%", up: true,  w: 135, h: 155, x: "2%",  y: "58%", delay: 2.2,  duration: 14, rx: -14, ry: 16,  rz: 10  },
+  { id: "pol",  symbol: "POL",  price: "0.782",  change: "-1.23%", up: false, w: 112, h: 128, x: "60%", y: "78%", delay: 0.4,  duration: 11, rx: 10,  ry: -14, rz: 5   },
+  { id: "usdt", symbol: "USDT", price: "1.000",  change: "0.00%",  up: true,  w: 118, h: 136, x: "14%", y: "80%", delay: 1.8,  duration: 13, rx: -8,  ry: 18,  rz: -8  },
 ];
 
-function FloatingToken({ token }: { token: typeof FLOATING_TOKENS[0] }) {
+function Token3DCard({ token }: { token: typeof FLOATING_TOKENS[0] }) {
   const info = TOKEN_ICONS[token.symbol];
   if (!info) return null;
+
+  const keyBob = `bob_${token.id}`;
+  const keySpin = `spin_${token.id}`;
+
   return (
     <div style={{
       position: "absolute",
       left: token.x,
       top: token.y,
-      width: token.size,
-      height: token.size,
+      width: token.w,
       zIndex: 3,
-      animation: `floatToken ${token.duration}s ease-in-out infinite`,
+      perspective: 600,
+      perspectiveOrigin: "50% 50%",
+      animation: `${keyBob} ${token.duration}s ease-in-out infinite`,
       animationDelay: `${token.delay}s`,
     }}>
-      {/* Ambient glow halo — no fill, just radial light */}
+      <style>{`
+        @keyframes ${keyBob} {
+          0%,100% { transform: translateY(0px); }
+          35%     { transform: translateY(-20px); }
+          70%     { transform: translateY(-10px); }
+        }
+        @keyframes ${keySpin} {
+          0%   { transform: rotateX(${token.rx}deg) rotateY(${token.ry}deg) rotateZ(${token.rz}deg); }
+          25%  { transform: rotateX(${token.rx - 4}deg) rotateY(${token.ry + 8}deg) rotateZ(${token.rz + 2}deg); }
+          50%  { transform: rotateX(${token.rx + 6}deg) rotateY(${token.ry - 6}deg) rotateZ(${token.rz - 3}deg); }
+          75%  { transform: rotateX(${token.rx - 2}deg) rotateY(${token.ry + 10}deg) rotateZ(${token.rz + 4}deg); }
+          100% { transform: rotateX(${token.rx}deg) rotateY(${token.ry}deg) rotateZ(${token.rz}deg); }
+        }
+      `}</style>
+
+      {/* 3D card wrapper */}
+      <div style={{
+        width: "100%",
+        height: token.h,
+        transformStyle: "preserve-3d",
+        animation: `${keySpin} ${token.duration * 1.4}s ease-in-out infinite`,
+        animationDelay: `${token.delay * 0.5}s`,
+      }}>
+        {/* CARD FACE */}
+        <div style={{
+          position: "absolute", inset: 0,
+          borderRadius: 22,
+          background: `linear-gradient(145deg,
+            rgba(255,255,255,0.09) 0%,
+            rgba(255,255,255,0.03) 40%,
+            rgba(${info.glow === "#F7931A" ? "247,147,26" : info.glow === "#627EEA" ? "98,126,234" : info.glow === "#F0B90B" ? "240,185,11" : info.glow === "#9945FF" ? "153,69,255" : info.glow === "#8247E5" ? "130,71,229" : "38,161,123"},0.08) 100%
+          )`,
+          backdropFilter: "blur(28px)",
+          border: `1px solid rgba(255,255,255,0.12)`,
+          boxShadow: [
+            `0 32px 64px rgba(0,0,0,0.6)`,
+            `0 0 40px ${info.glow}18`,
+            `inset 0 1px 0 rgba(255,255,255,0.22)`,
+            `inset 0 -1px 0 rgba(0,0,0,0.3)`,
+            `inset 1px 0 0 rgba(255,255,255,0.1)`,
+            `inset -1px 0 0 rgba(0,0,0,0.15)`,
+          ].join(","),
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          padding: "14px 14px 12px",
+        }}>
+
+          {/* Top label */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.2, color: "rgba(255,255,255,0.45)", textTransform: "uppercase" }}>
+              {token.symbol}
+            </div>
+            <div style={{
+              fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
+              color: token.up ? "#00ff88" : "#f87171",
+              background: token.up ? "rgba(0,255,136,0.12)" : "rgba(248,113,113,0.12)",
+              border: `1px solid ${token.up ? "rgba(0,255,136,0.25)" : "rgba(248,113,113,0.25)"}`,
+              borderRadius: 6, padding: "2px 6px",
+            }}>
+              {token.up ? "▲" : "▼"} {token.change}
+            </div>
+          </div>
+
+          {/* Token icon with neon ring */}
+          <div style={{
+            flex: 1,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            position: "relative",
+          }}>
+            {/* Neon ring — outer */}
+            <div style={{
+              position: "absolute",
+              width: 76, height: 76,
+              borderRadius: "50%",
+              border: `2px solid ${info.glow}60`,
+              boxShadow: `0 0 20px ${info.glow}50, 0 0 40px ${info.glow}20, inset 0 0 20px ${info.glow}10`,
+              animation: `pulseRing ${token.duration * 0.55}s ease-in-out infinite`,
+              animationDelay: `${token.delay}s`,
+            }} />
+            {/* Neon ring — inner thin */}
+            <div style={{
+              position: "absolute",
+              width: 58, height: 58,
+              borderRadius: "50%",
+              border: `1px solid ${info.glow}35`,
+              boxShadow: `0 0 12px ${info.glow}30`,
+            }} />
+            {/* Icon */}
+            <div
+              dangerouslySetInnerHTML={{ __html: info.svg }}
+              style={{
+                width: 44, height: 44, zIndex: 1,
+                filter: [
+                  `drop-shadow(0 0 10px ${info.glow}ee)`,
+                  `drop-shadow(0 0 4px ${info.glow}99)`,
+                ].join(" "),
+              }}
+            />
+          </div>
+
+          {/* Price */}
+          <div style={{
+            textAlign: "center", marginTop: 8,
+            fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.85)",
+            letterSpacing: -0.5, fontFamily: "monospace",
+          }}>
+            ${token.price}
+          </div>
+
+          {/* Glass reflection streak */}
+          <div style={{
+            position: "absolute",
+            top: 0, left: "10%", right: "10%", height: "45%",
+            borderRadius: "0 0 50% 50%",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.1) 0%, transparent 100%)",
+            pointerEvents: "none",
+          }} />
+
+          {/* Bottom glow pool */}
+          <div style={{
+            position: "absolute",
+            bottom: 0, left: 0, right: 0, height: "40%",
+            borderRadius: "0 0 22px 22px",
+            background: `linear-gradient(0deg, ${info.glow}12 0%, transparent 100%)`,
+            pointerEvents: "none",
+          }} />
+        </div>
+
+        {/* CARD EDGE — left side for depth */}
+        <div style={{
+          position: "absolute",
+          top: "8%", bottom: "8%",
+          left: -6,
+          width: 6,
+          background: `linear-gradient(90deg, rgba(0,0,0,0.5), ${info.glow}20)`,
+          borderRadius: "4px 0 0 4px",
+          transform: "rotateY(-90deg) translateX(3px)",
+          transformOrigin: "right center",
+        }} />
+      </div>
+
+      {/* Ambient glow below card */}
       <div style={{
         position: "absolute",
-        inset: -token.size * 0.35,
-        borderRadius: "50%",
-        background: `radial-gradient(circle, ${info.glow}20 0%, ${info.glow}08 40%, transparent 70%)`,
-        animation: `pulseRing ${token.duration * 0.65}s ease-in-out infinite`,
+        bottom: -20, left: "15%", right: "15%", height: 20,
+        background: `radial-gradient(ellipse, ${info.glow}25 0%, transparent 80%)`,
+        filter: "blur(8px)",
+        animation: `pulseRing ${token.duration * 0.6}s ease-in-out infinite`,
         animationDelay: `${token.delay}s`,
-        pointerEvents: "none",
       }} />
-
-      {/* The icon itself — no container, just glass-colored SVG */}
-      <div
-        dangerouslySetInnerHTML={{ __html: info.svg }}
-        style={{
-          width: "100%",
-          height: "100%",
-          filter: [
-            `drop-shadow(0 0 ${token.size * 0.18}px ${info.glow}cc)`,
-            `drop-shadow(0 0 ${token.size * 0.08}px ${info.glow}66)`,
-            `drop-shadow(0 ${token.size * 0.06}px ${token.size * 0.15}px rgba(0,0,0,0.5))`,
-          ].join(" "),
-          opacity: 0.82,
-        }}
-      />
     </div>
   );
 }
@@ -486,7 +618,7 @@ export function Landing() {
 
       {/* Floating token logos */}
       <div style={{ position: "fixed", inset: 0, zIndex: 4, pointerEvents: "none" }}>
-        {FLOATING_TOKENS.map(t => <FloatingToken key={t.id} token={t} />)}
+        {FLOATING_TOKENS.map(t => <Token3DCard key={t.id} token={t} />)}
       </div>
 
       {/* ── Navbar ── */}
