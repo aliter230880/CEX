@@ -10,10 +10,9 @@ const RPC_URLS: Record<string, string[]> = {
     "https://rpc.ankr.com/eth",
   ],
   BSC: [
+    "https://bsc.publicnode.com",
     "https://bsc-dataseed.binance.org",
     "https://bsc-dataseed1.defibit.io",
-    "https://bsc.publicnode.com",
-    "https://bsc-dataseed2.binance.org",
   ],
   POLYGON: [
     "https://polygon.publicnode.com",
