@@ -98,9 +98,9 @@ export default function Wallet() {
   });
 
   // Fetch tickers to get real USD prices for each asset
-  const { data: tickers } = useQuery<{ symbol: string; lastPrice: string }[]>({
+  const { data: tickers } = useQuery<{ pair: string; lastPrice: string }[]>({
     queryKey: ["wallet-tickers"],
-    queryFn: () => apiFetch<{ symbol: string; lastPrice: string }[]>("/api/market/tickers"),
+    queryFn: () => apiFetch<{ pair: string; lastPrice: string }[]>("/api/market/tickers"),
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
@@ -109,7 +109,8 @@ export default function Wallet() {
   const priceMap = (() => {
     const map: Record<string, number> = { USDT: 1, USDC: 1, BUSD: 1 };
     for (const t of tickers ?? []) {
-      const [base] = t.symbol.split("-");
+      if (!t?.pair) continue;
+      const [base] = t.pair.split("-");
       if (base) map[base] = parseFloat(t.lastPrice) || 0;
     }
     return map;
