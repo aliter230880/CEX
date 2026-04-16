@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, desc } from "drizzle-orm";
-import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, usersTable } from "@workspace/db";
+import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, usersTable, customTokensTable } from "@workspace/db";
 import { requireAuth } from "../lib/session";
 import {
   generateDepositAddress,
@@ -9,16 +9,44 @@ import {
   sendNative,
   sendERC20,
   parseAmount,
-  formatAmount,
   SUPPORTED_DEPOSIT_ASSETS,
-  getProvider,
 } from "../lib/blockchain";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
+// Helper: get all supported assets for a network (built-in + custom tokens)
+async function getSupportedAssets(network: string): Promise<string[]> {
+  const builtin = SUPPORTED_DEPOSIT_ASSETS[network] ?? [];
+  const custom = await db
+    .select({ symbol: customTokensTable.symbol })
+    .from(customTokensTable)
+    .where(and(eq(customTokensTable.network, network), eq(customTokensTable.status, "active")));
+  const customSymbols = custom.map(t => t.symbol).filter(s => !builtin.includes(s));
+  return [...builtin, ...customSymbols];
+}
+
+// Helper: resolve asset config — checks built-in first, then custom_tokens table
+async function resolveAssetConfig(
+  asset: string,
+  network: string,
+): Promise<{ isNative: boolean; contractAddress?: string; decimals: number }> {
+  // Try built-in first
+  try {
+    return getAssetConfig(asset, network);
+  } catch {
+    // Fall back to custom_tokens
+    const [token] = await db
+      .select()
+      .from(customTokensTable)
+      .where(and(eq(customTokensTable.symbol, asset), eq(customTokensTable.status, "active")));
+    if (!token) throw new Error(`Asset ${asset} is not supported on network ${network}`);
+    if (!token.contractAddress) throw new Error(`No contract address found for ${asset}`);
+    return { isNative: false, contractAddress: token.contractAddress, decimals: token.decimals };
+  }
+}
+
 // GET /api/wallet/deposit-address/:network
-// Returns (or creates) the user's deposit address for a given EVM network
 router.get("/wallet/deposit-address/:network", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
@@ -38,29 +66,29 @@ router.get("/wallet/deposit-address/:network", async (req, res): Promise<void> =
     return;
   }
 
-  // EVM address is the same across ETH/BSC/Polygon, so one address per user
+  const assets = await getSupportedAssets(network);
+
+  // EVM address is the same across ETH/BSC/Polygon
   const [existing] = await db
     .select()
     .from(depositAddressesTable)
     .where(eq(depositAddressesTable.userId, userId));
 
   if (existing) {
-    res.json({ address: existing.address, network, assets: SUPPORTED_DEPOSIT_ASSETS[network] ?? [] });
+    res.json({ address: existing.address, network, assets });
     return;
   }
 
-  // Generate new address
   const address = generateDepositAddress(userId);
   const [created] = await db
     .insert(depositAddressesTable)
     .values({ userId, address, derivationIndex: userId })
     .returning();
 
-  res.json({ address: created!.address, network, assets: SUPPORTED_DEPOSIT_ASSETS[network] ?? [] });
+  res.json({ address: created!.address, network, assets });
 });
 
 // GET /api/wallet/transactions
-// Returns the user's crypto transaction history
 router.get("/wallet/transactions", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
@@ -93,7 +121,6 @@ router.get("/wallet/transactions", async (req, res): Promise<void> => {
 });
 
 // POST /api/wallet/withdraw
-// Initiates a real on-chain withdrawal
 router.post("/wallet/withdraw", async (req, res): Promise<void> => {
   const userId = requireAuth(req);
   if (!userId) {
@@ -108,10 +135,7 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
   }
 
   const { asset, network, amount, toAddress } = req.body as {
-    asset: string;
-    network: string;
-    amount: string;
-    toAddress: string;
+    asset: string; network: string; amount: string; toAddress: string;
   };
 
   if (!asset || !network || !amount || !toAddress) {
@@ -130,7 +154,6 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     return;
   }
 
-  // Check user balance
   const [bal] = await db
     .select()
     .from(balancesTable)
@@ -141,10 +164,10 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     return;
   }
 
-  // Validate asset/network combo
-  let config: ReturnType<typeof getAssetConfig>;
+  // Resolve config — supports both built-in and custom tokens
+  let config: { isNative: boolean; contractAddress?: string; decimals: number };
   try {
-    config = getAssetConfig(asset, network);
+    config = await resolveAssetConfig(asset, network);
   } catch (err) {
     res.status(400).json({ error: "unsupported_asset", message: (err as Error).message });
     return;
@@ -155,11 +178,10 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     return;
   }
 
-  // Deduct balance first (optimistic)
+  // Deduct balance optimistically
   const newAvail = (parseFloat(bal.available) - amt).toFixed(8);
   await db.update(balancesTable).set({ available: newAvail }).where(eq(balancesTable.id, bal.id));
 
-  // Create pending transaction record
   const [txRecord] = await db.insert(cryptoTransactionsTable).values({
     userId,
     type: "withdrawal",
@@ -170,7 +192,6 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     toAddress,
   }).returning();
 
-  // Send on-chain transaction
   try {
     const amountBig = parseAmount(amt.toFixed(8), config.decimals);
     let txHash: string;
@@ -188,20 +209,24 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     logger.info({ userId, asset, network, amount, txHash, toAddress }, "Withdrawal initiated");
     res.json({ success: true, txHash, message: "Withdrawal submitted to blockchain" });
   } catch (err) {
-    // Refund balance on failure
     await db.update(balancesTable).set({ available: bal.available }).where(eq(balancesTable.id, bal.id));
     await db.update(cryptoTransactionsTable)
       .set({ status: "failed" })
       .where(eq(cryptoTransactionsTable.id, txRecord!.id));
-
     logger.error({ err, userId, asset, network, amount, toAddress }, "Withdrawal failed");
     res.status(500).json({ error: "withdrawal_failed", message: "Failed to send transaction. Please try again." });
   }
 });
 
 // GET /api/wallet/supported-assets
-router.get("/wallet/supported-assets", (_req, res) => {
-  res.json(SUPPORTED_DEPOSIT_ASSETS);
+// Returns all supported deposit/withdraw assets per network (including custom tokens)
+router.get("/wallet/supported-assets", async (_req, res): Promise<void> => {
+  const networks = ["ETH", "BSC", "POLYGON"];
+  const result: Record<string, string[]> = {};
+  for (const network of networks) {
+    result[network] = await getSupportedAssets(network);
+  }
+  res.json(result);
 });
 
 export default router;

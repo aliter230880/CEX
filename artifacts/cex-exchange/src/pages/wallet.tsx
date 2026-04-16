@@ -38,12 +38,6 @@ const ASSET_ICONS: Record<string, string> = {
   BTC: "₿",
 };
 
-const WITHDRAW_NETWORKS: Record<string, string[]> = {
-  ETH: ["ETH", "USDT"],
-  BSC: ["BNB", "USDT"],
-  POLYGON: ["POL", "USDT"],
-};
-
 const withdrawSchema = z.object({
   asset: z.string().min(1),
   network: z.string().min(1),
@@ -89,6 +83,13 @@ export default function Wallet() {
   const [depositNetwork, setDepositNetwork] = useState("ETH");
   const [withdrawNetwork, setWithdrawNetwork] = useState("ETH");
   const [copied, setCopied] = useState(false);
+
+  // Fetch all supported assets per network (includes custom tokens)
+  const { data: supportedAssets } = useQuery<Record<string, string[]>>({
+    queryKey: ["supported-assets"],
+    queryFn: () => apiFetch<Record<string, string[]>>("/api/wallet/supported-assets"),
+    staleTime: 60_000,
+  });
 
   const { data: depositInfo, isLoading: depositLoading, error: depositError } = useQuery<DepositAddressResponse>({
     queryKey: ["deposit-address", depositNetwork],
@@ -139,7 +140,7 @@ export default function Wallet() {
 
   const totalValue = balances?.reduce((acc, b) => acc + Number(b.available) + Number(b.locked), 0) || 0;
 
-  const availableAssets = WITHDRAW_NETWORKS[withdrawNetwork] ?? [];
+  const availableAssets = supportedAssets?.[withdrawNetwork] ?? [];
 
   if (!user) {
     return (
@@ -335,7 +336,7 @@ export default function Wallet() {
                               onValueChange={(v) => {
                                 field.onChange(v);
                                 setWithdrawNetwork(v);
-                                withdrawForm.setValue("asset", WITHDRAW_NETWORKS[v]?.[0] ?? "");
+                                withdrawForm.setValue("asset", (supportedAssets?.[v] ?? [])[0] ?? "");
                               }}
                               defaultValue={field.value}
                             >
