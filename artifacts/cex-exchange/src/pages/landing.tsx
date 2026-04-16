@@ -247,7 +247,7 @@ export default function Landing() {
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(5,9,18,0.75)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#00ff88,#00c866)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: "#050912", boxShadow: "0 0 18px rgba(0,255,136,.38)" }}>A</div>
+            <img src="/logo.png" alt="ATEX" style={{ width: 34, height: 34, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,255,136,.5))" }} />
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.5, background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,.5))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ATEX</span>
             <span style={{ fontSize: 11, color: "rgba(255,255,255,.3)", fontWeight: 400 }}>exchange</span>
           </Link>
@@ -431,7 +431,7 @@ export default function Landing() {
       {/* ── Footer ── */}
       <footer style={{ position: "relative", zIndex: 5, borderTop: "1px solid rgba(255,255,255,.05)", padding: "24px 32px", background: "rgba(5,9,18,.85)", backdropFilter: "blur(20px)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg,#00ff88,#00e5ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color: "#050912" }}>A</div>
+          <img src="/logo.png" alt="ATEX" style={{ width: 24, height: 24, objectFit: "contain", filter: "drop-shadow(0 0 6px rgba(0,255,136,.4))" }} />
           <span style={{ color: "rgba(255,255,255,.3)", fontSize: 13 }}>ATEX exchange © 2026</span>
         </div>
         <div style={{ display: "flex", gap: 20 }}>
