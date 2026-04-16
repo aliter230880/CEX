@@ -1,472 +1,372 @@
-# NexEx — Контекст проекта
+# ATEX Exchange — Полный контекст проекта
 
-> Последнее обновление: апрель 2026 · CI/CD тест  
-> Репозиторий: https://github.com/aliter230880/CEX  
-> Продакшн: https://hex.aliterra.space
-
----
-
-## 1. Что такое NexEx
-
-**NexEx** — централизованная криптовалютная биржа (CEX) с реальной блокейн-инфраструктурой.  
-Поддерживает спотовую торговлю, HD-кошельки для депозитов, on-chain вывод средств, книгу ордеров с матчинг-движком и панель администратора.
-
-### Торговые пары
-- BTC/USDT
-- ETH/USDT
-- BNB/USDT
-- POL/USDT
-- SOL/USDT
-
-### Поддерживаемые сети
-- **ETH** — Ethereum (ERC-20)
-- **BSC** — BNB Smart Chain (BEP-20)
-- **POLYGON** — Polygon (POL)
-
-### Комиссия
-- 0.1% от суммы каждой сделки
-
-### Стартовые балансы новых пользователей (тестовые)
-- 10 000 USDT
-- 0.5 BTC
-- 5 ETH
-- 10 BNB
-- 1 000 POL
+> Обновлено: 16 апреля 2026  
+> Статус: **В активной разработке** — продакшн работает на https://hex.aliterra.space  
+> Репозиторий: https://github.com/aliter230880/CEX
 
 ---
 
-## 2. Архитектура
+## 1. Что такое проект
 
-### Монорепозиторий (pnpm workspaces)
+**ATEX** — полноценная централизованная криптобиржа (CEX) с:
+- Спотовой торговлей (биржевой стакан, матчинг-движок)
+- Реальными HD-кошельками на базе мнемоники (BIP39/BIP44)
+- Мониторингом депозитов on-chain (ETH, BSC, Polygon)
+- Ордербуком и историей сделок в реальном времени
+- Графиком цен (TradingView-совместимый, данные через CoinGecko)
+- Полноценной панелью управления для администратора
+
+**Продакшн URL:** https://hex.aliterra.space  
+**VPS:** 89.111.152.187 (Ubuntu 24.04), путь `/root/nexex`
+
+---
+
+## 2. Архитектура системы
+
+### 2.1 Monorepo (pnpm workspaces)
 
 ```
-/
+/workspace
 ├── artifacts/
-│   ├── api-server/          # Express API (Node.js 22)
-│   └── cex-exchange/        # React + Vite фронтенд
+│   ├── api-server/          # Express.js API (TypeScript, сборка через esbuild)
+│   └── cex-exchange/        # React + Vite фронтенд (dist коммитится в git)
 ├── lib/
-│   ├── db/                  # Drizzle ORM, схема БД, миграции
-│   └── api-zod/             # Zod-схемы для валидации API
-├── deploy/                  # Скрипты деплоя
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   ├── setup-vps.sh         # Интерактивный установщик (с Docker)
-│   ├── setup-direct.sh      # Установщик без Docker (для 1 ГБ RAM)
-│   ├── nginx/nginx.conf     # nginx с SSL и rate limiting
-│   └── postgres/            # SQL init-скрипты
-└── CONTEXT.md               # Этот файл
+│   └── db/                  # Drizzle ORM + PostgreSQL схемы и миграции
+└── .github/workflows/
+    └── deploy.yml           # CI/CD: push → одобрение → деплой на VPS по SSH
 ```
 
-### Стек технологий
+### 2.2 API Server (`artifacts/api-server`)
 
-| Слой | Технология |
-|------|-----------|
-| Фронтенд | React 18, Vite, TypeScript, TailwindCSS, Recharts |
-| API | Express 5, TypeScript, pino (логи) |
-| БД | PostgreSQL 16, Drizzle ORM |
-| Сессии | express-session (cookie-based) |
-| Пароли | bcryptjs (rounds: 12) |
-| Блокейн | ethers.js v6 (HD wallet, on-chain транзакции) |
-| Процесс | PM2 (продакшн) / ts-node (разработка) |
-| Веб-сервер | nginx (reverse proxy, SSL termination) |
-| SSL | Let's Encrypt via certbot (авторенев через cron) |
-| Пакеты | pnpm workspaces (монорепо) |
+**Стек:** Node.js + Express + TypeScript, собирается esbuild → `dist/index.mjs`
 
-### Схема базы данных
+**Роуты:**
+| Маршрут | Файл | Описание |
+|---------|------|----------|
+| `GET /api/health` | health.ts | Проверка доступности |
+| `POST /api/auth/login` | auth.ts | Вход пользователя |
+| `POST /api/auth/register` | auth.ts | Регистрация |
+| `GET /api/auth/me` | auth.ts | Текущий пользователь |
+| `GET /api/market/pairs` | market.ts | Список торговых пар |
+| `GET /api/market/ticker/:pair` | market.ts | Цена и 24h изменение |
+| `GET /api/market/klines/:pair` | market.ts | OHLCV свечи |
+| `GET /api/market/stream` | market.ts | SSE real-time поток цен |
+| `GET /api/orderbook/:pair` | orderbook.ts | Стакан (bid/ask) |
+| `GET /api/market/recent-trades/:pair` | market.ts | Последние сделки |
+| `GET/POST /api/orders` | orders.ts | Создание и список ордеров |
+| `DELETE /api/orders/:id` | orders.ts | Отмена ордера |
+| `GET /api/trades` | trades.ts | История сделок пользователя |
+| `GET /api/balances` | balances.ts | Балансы пользователя |
+| `GET /api/wallet/deposit-address` | wallet.ts | Адреса для депозита |
+| `POST /api/wallet/withdraw` | wallet.ts | Запрос на вывод |
+| `POST /api/admin/login` | admin.ts | Вход администратора |
+| `GET /api/admin/me` | admin.ts | Статус сессии администратора |
+| `GET /api/admin/users` | admin.ts | Список пользователей |
+| `GET /api/admin/users/:id` | admin.ts | Детали пользователя |
+| `PATCH /api/admin/users/:id` | admin.ts | Блокировка/разблокировка |
+| `GET /api/admin/trading-pairs` | admin.ts | Управление парами |
+| `POST /api/admin/trading-pairs` | admin.ts | Добавить пару |
+| `PATCH /api/admin/trading-pairs/:id` | admin.ts | Вкл/выкл пару |
+| `GET /api/admin/tokens` | admin.ts | Листинг кастомных токенов |
+| `POST /api/admin/tokens` | admin.ts | Добавить токен |
+| `DELETE /api/admin/tokens/:id` | admin.ts | Делистинг токена |
+| `GET/PUT /api/admin/fees/:asset` | admin.ts | Комиссии по активу |
+| `GET/PUT /api/admin/referrals` | admin.ts | Реферальная программа |
+| `GET /api/admin/transactions` | admin.ts | Все депозиты/выводы |
+| `GET /api/admin/audit-log` | admin.ts | Журнал действий |
 
+**Ключевые библиотеки:**
+- `express-session` — сессии (хранятся в памяти процесса)
+- `bcryptjs` — хэширование паролей
+- `ethers.js v6` — работа с блокчейном
+- `drizzle-orm` + `pg` — ORM для PostgreSQL
+- `pino` + `pino-http` — структурированное логирование
+
+**Особенности:** При старте загружает `.env` через встроенный Node.js `fs` (без внешних пакетов). Значения из `.env` всегда перезаписывают env vars PM2 — это критично для обновления `ADMIN_PASSWORD`.
+
+### 2.3 Frontend (`artifacts/cex-exchange`)
+
+**Стек:** React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui + wouter (роутинг)
+
+**Страницы:**
 ```
-users             — аккаунты пользователей
-balances          — балансы по каждому активу и сети
-trading_pairs     — торговые пары (BTC/USDT и т.д.)
-orders            — книга ордеров
-trades            — история исполненных сделок
-klines            — OHLCV свечи для графика
-deposit_addresses — адреса депозитов (HD-кошелёк)
-withdrawals       — заявки на вывод
-audit_log         — лог действий администратора
+/              → Landing — лендинг с живыми ценами
+/markets       → Список всех торговых пар
+/trade/:pair   → Торговый терминал (график + стакан + форма)
+/login         → Вход пользователя
+/register      → Регистрация
+/wallet        → Кошелёк (депозит / вывод)
+/orders        → Мои ордера
+
+/admin/login       → Вход в панель администратора
+/admin             → Дашборд (7 секций)
+/admin/users       → Список пользователей с поиском
+/admin/users/:id   → Профиль пользователя
+/admin/trading-pairs → Управление торговыми парами
+/admin/tokens      → Листинг ERC-20/BEP-20 токенов
+/admin/fees        → Комиссии (maker/taker/вывод) по активам
+/admin/referrals   → Реферальная программа
+/admin/transactions → Мониторинг транзакций (авто-обновление 15с)
+/admin/audit-log   → Журнал действий администратора
 ```
 
-### Матчинг-движок
+**Ресайзируемые панели (localStorage):**
+- Боковое меню торговых пар: 160–400px (`use-sidebar-width.ts`)
+- Ордербук / форма ордера: `use-resizable-panels.ts`
+- Компонент разделителя: `ResizableDivider.tsx`
 
-Файл: `artifacts/api-server/src/lib/matching-engine.ts`
-
-- Лимитные и маркет-ордера
-- Приоритет по цене, затем по времени (FIFO)
-- При исполнении: атомарное обновление балансов + создание записи сделки
-- Замороженные пользователи исключены через SQL `INNER JOIN` с проверкой `account_status`
-- Комиссия 0.1% списывается с покупателя в quote-asset
-
-### HD-кошелёк (депозиты)
-
-- Используется `ethers.js` HDNodeWallet
-- Каждому пользователю деривируется уникальный адрес: `m/44'/60'/0'/0/{userId}`
-- Приватный ключ не хранится в БД — деривируется из мнемоники при каждом запросе
-- WALLET_MNEMONIC — 12-словная фраза, хранится только в `.env`
-
-### Горячий кошелёк (выводы)
-
-- HOT_WALLET_PRIVATE_KEY — ключ кошелька для отправки on-chain транзакций
-- Кошелёк должен иметь запас нативного газа (ETH/BNB/MATIC) для оплаты gas fees
-
----
-
-## 3. Что реализовано
-
-### Пользователи
-- [x] Регистрация / вход / выход
-- [x] Сессии через httpOnly cookie (secure в продакшн)
-- [x] Хеширование паролей bcrypt (rounds: 12)
-- [x] Стартовые балансы при регистрации
-
-### Торговля
-- [x] Книга ордеров (лимитные и маркет ордера)
-- [x] Матчинг-движок (реальное исполнение)
-- [x] История сделок
-- [x] OHLCV свечи / тиккеры
-- [x] 24h статистика рынка (объём, изменение, хай/лоу)
-
-### Кошелёк
-- [x] Просмотр балансов
-- [x] Генерация адресов депозита (HD-кошелёк)
-- [x] Запрос на вывод средств
-- [ ] Мониторинг блокейна (входящие депозиты) — в разработке
-- [ ] Автоматическое исполнение выводов — в разработке
-
-### Панель администратора `/admin`
-- [x] Аутентификация через bcrypt-хеш пароля
-- [x] Список пользователей с поиском и пагинацией (server-side SQL)
-- [x] Заморозка / разморозка аккаунтов (с авто-отменой ордеров и возвратом locked-балансов)
-- [x] Ручная корректировка балансов пользователя
-- [x] Список ордеров
-- [x] Audit log с пагинацией (все административные действия)
-- [x] Обязательная причина (reason) для freeze/unfreeze/sweep/escrow-key
-- [x] Sweep эскроу-кошелька
-
----
-
-## 4. Продакшн-инфраструктура
-
-### Сервер
-
-| Параметр | Значение |
-|---------|---------|
-| Провайдер | рег.облако (reg.ru) |
-| Имя | Coral Ununennium (ID: 4519085) |
-| IP | 89.111.152.187 |
-| ОС | Ubuntu 24.04 LTS |
-| CPU | 1 vCPU |
-| RAM | 1 ГБ |
-| Диск | 10 ГБ |
-| Тариф | Std C1-M1-D10, 0.58 ₽/час |
-| Расположение | Санкт-Петербург |
-
-### Домен
-- `hex.aliterra.space` → A-запись → `89.111.152.187`
-- DNS управляется через ISPmanager на shared хостинге reg.ru
-
-### Запуск на сервере
-
+**Важно:** `dist/` коммитится в git и деплоится как статические файлы — API раздаёт их из `dist/public`. После изменений UI **обязательна пересборка**:
 ```bash
-# Приложение управляется через PM2
-pm2 status              # статус
-pm2 logs nexex          # логи в реальном времени
-pm2 restart nexex       # перезапуск
-pm2 delete nexex        # остановить
-
-# Конфиг PM2 (важно: env-переменные загружаются из ecosystem.config.cjs)
-cat /root/nexex/ecosystem.config.cjs
-
-# nginx
-systemctl status nginx
-systemctl reload nginx      # применить изменения конфига
-cat /etc/nginx/sites-available/nexex
-
-# SSL (авторенев через certbot cron)
-certbot certificates        # статус сертификатов
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/cex-exchange run build
+git add artifacts/cex-exchange/dist/
 ```
 
-### Файлы на сервере
+### 2.4 База данных (PostgreSQL + Drizzle ORM)
+
+**Схемы** (`lib/db/src/schema/`):
+| Таблица | Описание |
+|---------|----------|
+| `users` | Пользователи (email, password hash, createdAt) |
+| `balances` | Балансы по активам (userId, asset, amount) |
+| `orders` | Ордера (type, side, price, qty, status) |
+| `trades` | Исполненные сделки |
+| `klines` | OHLCV свечи (пара, интервал, timestamp) |
+| `trading_pairs` | Торговые пары (symbol, base, quote, active) |
+| `crypto_transactions` | Депозиты и выводы (type, amount, txHash, status) |
+| `deposit_addresses` | HD-адреса пользователей (userId, chain, address, index) |
+| `admin_audit_log` | Лог действий администратора |
+| `fee_config` | Комиссии по активам (maker, taker, withdrawal) |
+| `referral_config` | Настройки реферальной программы |
+| `custom_tokens` | ERC-20/BEP-20 токены через admin |
+
+**Миграции:** `drizzle-kit push` (schema-first, без файлов миграций)
+
+### 2.5 Блокчейн-интеграция
+
+**Поддерживаемые сети:**
+- Ethereum (ETH) — mainnet
+- BNB Smart Chain (BSC) — mainnet
+- Polygon (POL/MATIC) — mainnet
+
+**HD Wallet (BIP44):**
+- Мнемоника из `WALLET_MNEMONIC`
+- Деривация: `m/44'/60'/0'/0/{userIndex}`
+- Один EVM-адрес на пользователя для всех трёх сетей
+
+**Мониторинг депозитов:**
+- Опрос `eth_getLogs` (Transfer events) на каждой сети
+- Поддержка нативных монет (ETH/BNB/POL) и ERC-20/BEP-20 (USDT, USDC и др.)
+- После подтверждения — автоматическое зачисление баланса
+
+**Горячий кошелёк:** `HOT_WALLET_PRIVATE_KEY` — для выводов пользователям
+
+### 2.6 CI/CD Pipeline
 
 ```
-/root/nexex/               # корень проекта (git clone)
-/root/nexex/.env           # переменные окружения (НЕ в git)
-/root/nexex/ecosystem.config.cjs  # PM2 конфиг с env
-/etc/nginx/sites-available/nexex  # nginx конфиг
-/etc/letsencrypt/live/hex.aliterra.space/  # SSL сертификат
-~/.pm2/logs/               # логи PM2
+git push → GitHub Actions:
+  1. Список изменений (автоматически)
+  2. Ожидание ручного одобрения (environment: production)
+  3. SSH на VPS (appleboy/ssh-action):
+     a. git fetch + reset --hard origin/main
+     b. Запись bcrypt-хэша ADMIN_PASSWORD в .env (через sed)
+     c. Безопасное извлечение DATABASE_URL (grep + cut, без source)
+     d. drizzle-kit push (миграции схемы)
+     e. esbuild (сборка API → dist/index.mjs)
+     f. Копирование logo.png если есть
+     g. pm2 restart nexex
 ```
+
+**PM2:** использует `ecosystem.config.cjs` — критично для `WALLET_MNEMONIC` с пробелами  
+**Nginx:** reverse proxy, `app.set("trust proxy", 1)` обязателен для сессионных cookie
 
 ---
 
-## 5. Конфигурация и секреты
+## 3. Переменные окружения
 
-> ⚠️ Никогда не коммить `.env` в репозиторий!
-
-### Переменные окружения (`.env` на сервере)
+### VPS (`/root/nexex/.env`)
 
 | Переменная | Описание |
-|-----------|---------|
-| `NODE_ENV` | `production` |
-| `PORT` | `3000` (nginx проксирует 80/443 → 3000) |
-| `DATABASE_URL` | `postgres://nexex:PASSWORD@localhost:5432/nexex` |
-| `SESSION_SECRET` | Случайная 64-символьная строка (hex) |
-| `ADMIN_PASSWORD` | Bcrypt-хеш пароля администратора |
-| `WALLET_MNEMONIC` | 12 слов HD-кошелька (пробелами) |
-| `HOT_WALLET_PRIVATE_KEY` | Приватный ключ 0x... горячего кошелька |
-| `FRONTEND_DIST` | `/root/nexex/artifacts/cex-exchange/dist/public` |
-| `POSTGRES_PASSWORD` | Пароль пользователя БД nexex |
+|-----------|----------|
+| `PORT` | Порт API сервера (8080 на проде) |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SESSION_SECRET` | Секрет express-session |
+| `WALLET_MNEMONIC` | BIP39 мнемоника (12–24 слова через пробелы!) |
+| `HOT_WALLET_PRIVATE_KEY` | Private key горячего кошелька |
+| `ADMIN_PASSWORD` | Bcrypt-хэш пароля администратора |
 
-### Где хранятся секреты в Replit
+**Критично:** `WALLET_MNEMONIC` содержит пробелы → нельзя `source .env` в bash!
 
-В Replit Secrets (иконка 🔒 в боковой панели):
-- `WALLET_MNEMONIC`
-- `HOT_WALLET_PRIVATE_KEY`
-- `SESSION_SECRET`
+### Replit (dev)
 
-### Генерация bcrypt-хеша для ADMIN_PASSWORD
+Те же переменные через Replit Secrets + setEnvVars:
+- `ADMIN_PASSWORD` = `$2b$12$KaZD8ignMUIPJ7pXoJ9Vp.nq9GXv8S9ybJ07TQV4rlBIobgLS3U8O`
 
-```bash
-# На сервере:
-cd /root/nexex
-npm install --prefix /tmp bcryptjs
-node -e "const b=require('/tmp/node_modules/bcryptjs');b.hash('ТвойПароль',12).then(console.log)"
+---
+
+## 4. Доступ в Admin Panel
+
+| | |
+|-|-|
+| **URL** | https://hex.aliterra.space/admin |
+| **Пароль** | `Dim_230880` |
+
+Хэш в `.env` на сервере. API загружает его при старте через встроенный загрузчик.
+
+---
+
+## 5. Хронология — что было сделано
+
+### Базовая инфраструктура
+- Monorepo (pnpm workspaces), Express API + React/Vite фронтенд
+- PostgreSQL + Drizzle ORM
+- Аутентификация (email + bcrypt, express-session)
+- Базовые торговые роуты
+
+### Блокчейн и кошельки
+- HD Wallet (BIP44), депозитные адреса (уникальные на пользователя)
+- Мониторинг депозитов on-chain (`eth_getLogs`)
+- Вывод нативных монет и ERC-20 токенов
+
+### Торговый терминал
+- График цен (CoinGecko OHLC → TradingView-свечи)
+- Ордербук (bid/ask в реальном времени)
+- Форма ордеров (limit, market), матчинг-движок
+- SSE-стрим `/api/market/stream`
+- Ресайзируемые панели с сохранением в localStorage
+
+### Панель администратора (7 разделов)
+- Дашборд с навигацией
+- Управление пользователями (список, профиль, блокировка)
+- Управление торговыми парами (добавить, вкл/выкл)
+- Листинг токенов (ERC-20/BEP-20, делистинг)
+- Конфигурация комиссий (maker/taker/вывод по каждому активу)
+- Реферальная программа (тип награды, %, мин. объём)
+- Мониторинг транзакций (все депозиты/выводы, авто-обновление 15с)
+- Журнал аудита
+
+---
+
+## 6. Проблемы и решения
+
+### ADMIN_PASSWORD не работал на продакшне (длинная отладка)
+
+**Симптом:** `POST /api/admin/login` → `401 Invalid password` на hex.aliterra.space
+
+**Цепочка ошибок:**
+
+| Попытка | Что делали | Результат |
+|---------|-----------|-----------|
+| 1 | Записать хэш в .env через sed в deploy.yml, `pm2 restart nexex` | 401 — PM2 использует старый env из ecosystem.config.cjs |
+| 2 | Добавить `source .env` в deploy.yml + `pm2 restart --update-env` | ОШИБКА: `squeeze: command not found` — слова мнемоники воспринимались bash как команды |
+| 3 | Добавить пакет `dotenv` в api-server | ОШИБКА: `Could not resolve "dotenv/config"` — пакет не установлен на сервере (deploy не запускает `pnpm install`) |
+| 4 | Встроенный загрузчик .env через Node.js fs, но без перезаписи | 401 — PM2 всё ещё имел старое значение, загрузчик пропускал уже установленные переменные |
+| **5** | **Загрузчик с принудительной перезаписью** | **✓ РАБОТАЕТ** |
+
+**Финальное решение** (`artifacts/api-server/src/index.ts`):
+```typescript
+(function loadDotEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+  const lines = readFileSync(envPath, "utf8").split("\n");
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eq = line.indexOf("=");
+    if (eq < 1) continue;
+    const key = line.slice(0, eq).trim();
+    if (!key) continue;
+    let val = line.slice(eq + 1);
+    if ((val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+    process.env[key] = val; // всегда перезаписываем PM2-значения
+  }
+})();
 ```
 
----
+**Ключевой инсайт:** PM2 хранит env vars в `ecosystem.config.cjs` и не обновляет их при `pm2 restart` без `--update-env`. Решение — читать `.env` напрямую в коде сервера при каждом старте.
 
-## 6. Обновление приложения на сервере
+### WALLET_MNEMONIC с пробелами
 
+**Проблема:** `source .env` в bash → `squeeze: command not found`  
+**Решение:** Только `grep + cut` для извлечения конкретных переменных:
 ```bash
-cd /root/nexex
-
-# 1. Получить обновления
-git pull
-
-# 2. Пересобрать API-сервер (если изменялся код)
-pnpm --filter @workspace/api-server run build
-
-# 3. Применить миграции БД (если изменялась схема)
-export $(grep -v '^#' .env | xargs -d '\n')
-pnpm --filter @workspace/db run push
-
-# 4. Перезапустить
-pm2 restart nexex
-
-# 5. Если изменился .env — пересоздать ecosystem.config.cjs
-node -e "
-const fs = require('fs');
-const env = {};
-fs.readFileSync('.env','utf8').split('\n').forEach(l => {
-  const m = l.match(/^([^#=]+)=(.*)/);
-  if(m) env[m[1].trim()] = m[2].trim();
-});
-fs.writeFileSync('ecosystem.config.cjs', 'module.exports={apps:[{name:\"nexex\",script:\"artifacts/api-server/dist/index.mjs\",node_args:\"--enable-source-maps\",env:' + JSON.stringify(env) + '}]}');
-"
-pm2 delete nexex && pm2 start ecosystem.config.cjs && pm2 save
+DATABASE_URL=$(grep '^DATABASE_URL=' .env | head -1 | cut -d'=' -f2-)
 ```
 
----
+### Сессии за nginx
 
-## 7. Первоначальная инициализация БД
+**Проблема:** Cookie не передавались, сессии терялись  
+**Решение:** `app.set("trust proxy", 1)` в app.ts (строка 12)
 
-При первом деплое на чистый сервер:
+### CoinGecko 429/400
 
-```bash
-cd /root/nexex
-export $(grep -v '^#' .env | xargs -d '\n')
-
-# Создать таблицы
-pnpm --filter @workspace/db run push
-
-# Заполнить торговые пары
-psql $DATABASE_URL << 'SQL'
-INSERT INTO trading_pairs (symbol, base_asset, quote_asset, status, min_order_size, tick_size, step_size, network) VALUES
-  ('BTC/USDT', 'BTC', 'USDT', 'active', 0.00001, 0.01, 0.00001, 'ETH'),
-  ('ETH/USDT', 'ETH', 'USDT', 'active', 0.0001,  0.01, 0.0001,  'ETH'),
-  ('BNB/USDT', 'BNB', 'USDT', 'active', 0.001,   0.01, 0.001,   'BSC'),
-  ('POL/USDT', 'POL', 'USDT', 'active', 0.01,    0.0001,0.01,   'POLYGON'),
-  ('SOL/USDT', 'SOL', 'USDT', 'active', 0.001,   0.01, 0.001,   'ETH')
-ON CONFLICT (symbol) DO NOTHING;
-SQL
-```
+**Проблема:** Превышение лимитов бесплатного API при синхронизации свечей  
+**Текущее состояние:** Ошибки логируются, сервер не крашает. Данные могут подгружаться с задержкой.
 
 ---
 
-## 8. Трудности и решения
-
-### 8.1 Express 5 — синтаксис wildcard-роута
-
-**Проблема:** `app.get("*", handler)` выбрасывал `PathError` с path-to-regexp v8 (используется в Express 5).
-
-**Решение:** Изменить на `app.get("/{*path}", handler)`.
-
-**Файл:** `artifacts/api-server/src/app.ts`
-
----
-
-### 8.2 Docker build — нехватка RAM на 1 ГБ
-
-**Проблема:** Multi-stage Docker build (frontend + API) требует ~1.5–2 ГБ RAM. На VPS с 1 ГБ зависал на шаге `pnpm install` для фронтенда (2476 модулей).
-
-**Решение:**
-1. Предсобранный фронтенд добавлен в git (исключение в `.gitignore`)
-2. Dockerfile упрощён — убрана стадия `frontend-builder`
-3. Деплой переведён с Docker на прямой запуск Node.js + PM2
-
-**Файлы:** `deploy/Dockerfile`, `.gitignore`, `artifacts/cex-exchange/dist/` (в git)
-
----
-
-### 8.3 PM2 — опция `--env-file` не поддерживается
-
-**Проблема:** Старая версия PM2 не поддерживает `--env-file` флаг.
-
-**Решение:** Создание `ecosystem.config.cjs` с env-переменными, сгенерированными из `.env`:
-
-```bash
-node -e "
-const fs = require('fs');
-const env = {};
-fs.readFileSync('.env','utf8').split('\n').forEach(l => {
-  const m = l.match(/^([^#=]+)=(.*)/);
-  if(m) env[m[1].trim()] = m[2].trim();
-});
-fs.writeFileSync('ecosystem.config.cjs',
-  'module.exports={apps:[{name:\"nexex\",script:\"artifacts/api-server/dist/index.mjs\",node_args:\"--enable-source-maps\",env:' + JSON.stringify(env) + '}]}');
-"
-```
-
----
-
-### 8.4 Сессионные куки не работают за nginx
-
-**Проблема:** После настройки nginx reverse proxy логин перестал работать. Cookie с флагом `secure: true` не устанавливался, потому что Express видел HTTP-соединение (nginx → app на порту 3000), не зная о HTTPS снаружи.
-
-**Решение:** Добавить `app.set("trust proxy", 1)` перед session middleware.
-
-**Файл:** `artifacts/api-server/src/app.ts` (строка 15)
-
----
-
-### 8.5 Таблицы БД не созданы после деплоя
-
-**Проблема:** После запуска приложения все API-запросы возвращали 500 — таблицы не существовали в PostgreSQL.
-
-**Решение:** Вручную применить Drizzle-миграции:
-```bash
-export $(grep -v '^#' .env | xargs -d '\n')
-pnpm --filter @workspace/db run push
-```
-Затем вставить начальные данные (торговые пары) через SQL.
-
----
-
-### 8.6 WALLET_MNEMONIC с пробелами — проблема экспорта
-
-**Проблема:** `export $(grep -v '^#' .env | xargs -d '\n')` некорректно обрабатывает многословные значения с пробелами (мнемоника = 12 слов через пробел). При `pm2 restart --update-env` переменная не передавалась.
-
-**Решение:** Генерировать `ecosystem.config.cjs` с env как JSON-объект — PM2 загружает переменные напрямую без shell-парсинга.
-
----
-
-### 8.7 Порт 80 занят при старте Docker
-
-**Проблема:** Системный nginx занимал порт 80, Docker не мог запустить nginx-контейнер.
-
-**Решение:**
-```bash
-systemctl stop nginx && systemctl disable nginx
-```
-
----
-
-### 8.8 curl | bash — интерактивный ввод не работает
-
-**Проблема:** Запуск `curl ... | bash` перенаправляет stdin с curl, а не с терминала, поэтому команды `read` (запрос пароля) не работают.
-
-**Решение:** Разделить на два этапа — сначала клонировать репозиторий, затем запускать скрипт напрямую: `bash /root/nexex/deploy/setup-direct.sh`.
-
----
-
-### 8.9 Рабочая среда Replit — чёрный экран
-
-**Проблема:** Интерфейс Replit перестал отображаться (чёрный экран в левой панели).
-
-**Решение:** Открыть проект в другом браузере или жёсткое обновление `Ctrl+Shift+R`. Весь код и чат сохраняются автоматически в чекпоинтах.
-
----
-
-## 9. Что планируется (TODO)
+## 7. Что делать дальше
 
 ### Высокий приоритет
-- [ ] **Мониторинг блокейна** — сканирование новых блоков и зачисление депозитов автоматически
-- [ ] **Исполнение выводов** — отправка on-chain транзакций через горячий кошелёк
-- [ ] **Верификация email** — подтверждение при регистрации
-- [ ] **2FA** — Google Authenticator / TOTP
+- [ ] **Реферальная система** — поле `referral_code` при регистрации, трекинг, начисление наград
+- [ ] **Email-уведомления** — подтверждение регистрации, уведомления о транзакциях
+- [ ] **Хранение сессий в БД** — сейчас in-memory, теряются при рестарте PM2
+- [ ] **KYC/лимиты** — ограничения вывода без верификации
 
 ### Средний приоритет
-- [ ] **WebSocket** — real-time обновления книги ордеров и сделок
-- [ ] **KYC** — верификация личности
-- [ ] **Реферальная система**
-- [ ] **Маржинальная торговля**
+- [ ] **WebSocket** вместо SSE — надёжнее для real-time
+- [ ] **Rate limiting** на API — защита от спама ордерами
+- [ ] **Профиль пользователя** — смена пароля, настройки
+- [ ] **2FA для администратора** — TOTP
+- [ ] **Страница Markets** — полный список с сортировкой по объёму
 
 ### Низкий приоритет
-- [ ] **Мобильное приложение** (Expo/React Native)
-- [ ] **API для трейдеров** (REST + WebSocket, API-ключи)
-- [ ] **Поддержка большего числа сетей** (Arbitrum, Optimism, Base)
+- [ ] Мобильная адаптация торгового терминала
+- [ ] Экспорт истории сделок (CSV)
+- [ ] Публичный API для трейдеров с документацией
+- [ ] Загрузка логотипа через admin-панель
 
 ---
 
-## 10. Структура ключевых файлов
+## 8. Критические правила разработки
 
-```
-artifacts/api-server/src/
-├── app.ts                   # Express app (trust proxy, session, middlewares)
-├── routes/
-│   ├── index.ts             # Роутер
-│   ├── auth.ts              # Регистрация / вход / выход
-│   ├── market.ts            # Рыночные данные (тиккеры, свечи, книга)
-│   ├── orders.ts            # Создание и отмена ордеров
-│   ├── wallet.ts            # Балансы, депозит, вывод
-│   └── admin.ts             # Панель администратора
-└── lib/
-    ├── matching-engine.ts   # Матчинг-движок
-    ├── wallet.ts            # HD-кошелёк (ethers.js)
-    └── logger.ts            # pino логгер
-
-artifacts/cex-exchange/src/
-├── pages/
-│   ├── markets.tsx          # Обзор рынков
-│   ├── trade.tsx            # Торговый терминал
-│   ├── wallet.tsx           # Кошелёк
-│   ├── orders.tsx           # История ордеров
-│   └── admin/               # Панель администратора
-├── components/              # UI-компоненты
-└── lib/api.ts               # API-клиент
-
-lib/db/src/
-├── schema/                  # Drizzle-схемы таблиц
-├── index.ts                 # Подключение к БД
-└── drizzle.config.ts        # Конфиг Drizzle Kit
-```
-
----
-
-## 11. Полезные команды для разработки (Replit)
+### Деплой фронтенда
 
 ```bash
-# Запуск в dev-режиме (все сервисы)
-# Используй кнопку Run в Replit (workflows)
+# После ЛЮБОГО изменения UI — пересборка обязательна!
+PORT=3000 BASE_PATH=/ pnpm --filter @workspace/cex-exchange run build
+git add artifacts/cex-exchange/dist/
+git commit -m "build: rebuild frontend"
+git push origin main
+# Одобрить на https://github.com/aliter230880/CEX/actions
+```
 
-# Применить изменения схемы БД
-pnpm --filter @workspace/db run push
+### В deploy.yml — НЕЛЬЗЯ
 
-# Пересобрать фронтенд для деплоя
-cd artifacts/cex-exchange && BASE_PATH=/ NODE_ENV=production pnpm run build
+```bash
+source .env          # ЛОМАЕТ: мнемоника с пробелами
+pnpm install         # НЕ запускается при деплое
+pm2 restart --update-env  # Не работает без правильного env в shell
+```
 
-# Пересобрать API
-pnpm --filter @workspace/api-server run build
+### Парсинг торговых пар
 
-# Push в GitHub
-git add . && git commit -m "..." && git push
+Все роуты нормализуют: `.replace(/[-_]/g, "/")` → `BTC-USDT` = `BTC_USDT` = `BTC/USDT`
+
+### CoinGecko OHLC → интервалы свечей
+
+| days | Интервал |
+|------|----------|
+| 1 | 30m |
+| 2 | 1h |
+| 7 | 4h |
+| 30 | 1d |
+
+### PM2 на сервере
+
+```bash
+pm2 restart nexex     # Перезапуск (ADMIN_PASSWORD берётся из .env автоматически)
+pm2 logs nexex        # Просмотр логов
+pm2 status            # Статус процессов
+# Конфиг: /root/nexex/ecosystem.config.cjs (генерировался из .env)
 ```
