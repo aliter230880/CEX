@@ -26,6 +26,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { PriceChart } from "@/components/PriceChart";
 import { useFlashOnChange } from "@/hooks/use-flash-on-change";
+import { useResizablePanels } from "@/hooks/use-resizable-panels";
+import { ResizableDivider } from "@/components/ResizableDivider";
 
 const orderSchema = z.object({
   type: z.enum(["limit", "market"]),
@@ -63,6 +65,7 @@ export default function Trade() {
   const { data: balances } = useGetBalances({ query: { queryKey: getGetBalancesQueryKey(), enabled: !!user } });
 
   const createOrder = useCreateOrder();
+  const { widths, onMouseDown } = useResizablePanels();
 
   const form = useForm<z.infer<typeof orderSchema>>({
     resolver: zodResolver(orderSchema),
@@ -141,7 +144,7 @@ export default function Trade() {
       <div className="flex flex-1 overflow-hidden flex-col lg:flex-row">
         
         {/* Left Column: Chart & Orders */}
-        <div className="flex-1 flex flex-col min-w-0 border-r">
+        <div className="flex-1 flex flex-col min-w-0">
           <div className="h-[50vh] lg:h-[60%] border-b bg-card overflow-hidden">
             <PriceChart apiPair={apiPair} isPositive={isPositive} />
           </div>
@@ -189,8 +192,10 @@ export default function Trade() {
           </div>
         </div>
 
+        <ResizableDivider onMouseDown={onMouseDown("orderBook")} />
+
         {/* Middle Column: Order Book */}
-        <div className="w-full lg:w-72 border-r flex flex-col bg-card">
+        <div className="hidden lg:flex flex-col bg-card border-r" style={{ width: widths.orderBook, flexShrink: 0 }}>
           <div className="p-2 border-b font-semibold text-sm">Order Book</div>
           <div className="flex-1 flex flex-col overflow-hidden text-xs font-mono">
             <div className="flex justify-between px-2 py-1 text-muted-foreground">
@@ -233,8 +238,10 @@ export default function Trade() {
           </div>
         </div>
 
+        <ResizableDivider onMouseDown={onMouseDown("tradeForm")} />
+
         {/* Right Column: Order Form & Recent Trades */}
-        <div className="w-full lg:w-80 flex flex-col bg-card">
+        <div className="hidden lg:flex flex-col bg-card" style={{ width: widths.tradeForm, flexShrink: 0 }}>
           
           {/* Order Form */}
           <div className="p-4 border-b">
