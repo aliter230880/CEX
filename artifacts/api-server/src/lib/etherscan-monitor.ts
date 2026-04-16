@@ -245,9 +245,11 @@ async function scanAddressOnBscMoralis(
   // ── ERC-20 token transfers ──────────────────────────────────────────────
   let tokenTxs: MoralisTokenTx[] = [];
   try {
+    const tokenParams: Record<string, string> = { chain: "bsc", limit: "100" };
+    if (fromBlock > 0) tokenParams.from_block = fromBlockStr;
     tokenTxs = await moralisFetch<MoralisTokenTx>(
       `/${depAddr.address}/erc20/transfers`,
-      { chain: "bsc", from_block: fromBlockStr, limit: "200", order: "ASC" },
+      tokenParams,
     );
   } catch (err) {
     logger.warn({ err, address: addr }, "Moralis BSC tokentx fetch failed");
@@ -280,9 +282,11 @@ async function scanAddressOnBscMoralis(
   // ── Native BNB transfers ────────────────────────────────────────────────
   let nativeTxs: MoralisNativeTx[] = [];
   try {
+    const nativeParams: Record<string, string> = { chain: "bsc", limit: "100" };
+    if (fromBlock > 0) nativeParams.from_block = fromBlockStr;
     nativeTxs = await moralisFetch<MoralisNativeTx>(
       `/${depAddr.address}`,
-      { chain: "bsc", from_block: fromBlockStr, limit: "200", order: "ASC" },
+      nativeParams,
     );
   } catch (err) {
     logger.warn({ err, address: addr }, "Moralis BSC native fetch failed");
