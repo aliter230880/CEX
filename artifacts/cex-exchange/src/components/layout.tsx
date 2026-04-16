@@ -5,12 +5,15 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Wallet, History, LogOut, TrendingUp, Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useSidebarWidth } from "@/hooks/use-sidebar-width";
+import { ResizableDivider } from "@/components/ResizableDivider";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, checkAuth } = useAuth();
   const [, setLocation] = useLocation();
   const logout = useLogout();
   const { data: pairs } = useGetTradingPairs();
+  const { width: sidebarWidth, onMouseDown: onSidebarResize } = useSidebarWidth();
 
   const handleLogout = () => {
     logout.mutate(undefined, {
@@ -40,20 +43,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 
   const Sidebar = () => (
-    <div className="w-64 border-r bg-card flex flex-col hidden md:flex h-[calc(100vh-4rem)] sticky top-16">
-      <div className="p-4 border-b">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Trading Pairs</h2>
-      </div>
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {pairs?.map((pair) => (
-            <Link key={pair.id} href={`/trade/${pair.symbol.replace("/", "_")}`} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent rounded-md transition-colors">
-              <span className="font-medium">{pair.symbol}</span>
-            </Link>
-          ))}
+    <>
+      <div
+        className="border-r bg-card flex-col hidden md:flex h-[calc(100vh-4rem)] sticky top-16 flex-shrink-0"
+        style={{ width: sidebarWidth }}
+      >
+        <div className="p-4 border-b">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Trading Pairs</h2>
         </div>
-      </ScrollArea>
-    </div>
+        <ScrollArea className="flex-1">
+          <div className="p-2 space-y-1">
+            {pairs?.map((pair) => (
+              <Link key={pair.id} href={`/trade/${pair.symbol.replace("/", "_")}`} className="flex items-center justify-between px-3 py-2 text-sm hover:bg-accent rounded-md transition-colors">
+                <span className="font-medium">{pair.symbol}</span>
+              </Link>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+      <ResizableDivider onMouseDown={onSidebarResize} />
+    </>
   );
 
   return (
