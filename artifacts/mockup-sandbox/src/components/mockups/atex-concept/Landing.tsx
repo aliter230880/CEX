@@ -8,7 +8,8 @@ const CG_IDS: Record<string, string> = {
 
 type PriceMap = Record<string, { price: number; change: number }>;
 
-function formatPrice(p: number): string {
+function formatPrice(p: number | null | undefined): string {
+  if (p == null || isNaN(p) || !isFinite(p)) return "—";
   if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
   if (p >= 100)   return p.toLocaleString("en-US", { maximumFractionDigits: 2 });
   if (p >= 1)     return p.toLocaleString("en-US", { maximumFractionDigits: 4 });
@@ -28,7 +29,12 @@ function useLivePrices(): PriceMap {
       const data = await res.json();
       const result: PriceMap = {};
       for (const [sym, id] of Object.entries(CG_IDS)) {
-        if (data[id]) result[sym] = { price: data[id].usd, change: data[id].usd_24h_change ?? 0 };
+        if (data[id] && data[id].usd != null) {
+          result[sym] = {
+            price:  Number(data[id].usd)              || 0,
+            change: Number(data[id].usd_24h_change)   || 0,
+          };
+        }
       }
       if (Object.keys(result).length) setPrices(result);
     } catch { /* silent — keep showing last known */ }
@@ -161,12 +167,12 @@ function Token3DCard({ token, prices }: { token: typeof FLOATING_TOKENS[0]; pric
   const info = TOKEN_ICONS[token.symbol];
   if (!info) return null;
 
-  const live = prices[token.symbol];
-  const def  = PRICE_DEFAULTS[token.symbol];
-  const priceStr  = live ? formatPrice(live.price) : def.price;
-  const changeVal = live ? live.change : parseFloat(def.change);
+  const live      = prices[token.symbol];
+  const def       = PRICE_DEFAULTS[token.symbol];
+  const priceStr  = live?.price != null ? formatPrice(live.price) : def.price;
+  const changeVal = live?.change != null ? live.change : parseFloat(def.change) || 0;
   const up        = changeVal >= 0;
-  const changeStr = (up ? "+" : "") + changeVal.toFixed(2) + "%";
+  const changeStr = (up ? "+" : "") + (changeVal || 0).toFixed(2) + "%";
 
   const keyBob = `bob_${token.id}`;
   const keySpin = `spin_${token.id}`;
@@ -510,12 +516,13 @@ const TICKER_ITEM_W = 224; /* px — fixed width per pill including gap */
 function TickerRow({ prices }: { prices: PriceMap }) {
   const tickers = TICKER_DEFAULTS.map(t => {
     const live = prices[t.symbol];
-    if (!live) return t;
-    const up = live.change >= 0;
+    if (!live || live.price == null) return t;
+    const ch = live.change || 0;
+    const up = ch >= 0;
     return {
       symbol: t.symbol,
       price: formatPrice(live.price),
-      change: (up ? "+" : "") + live.change.toFixed(2),
+      change: (up ? "+" : "") + ch.toFixed(2),
       up,
     };
   });
