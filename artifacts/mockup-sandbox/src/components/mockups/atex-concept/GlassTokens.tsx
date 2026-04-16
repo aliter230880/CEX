@@ -1,388 +1,326 @@
 /**
- * ATEX — 3D volumetric glass token logos v3
- * Fixed SOL (parallelogram bars) + BNB (5-diamond cross)
- * Liquid pouring animation inside shapes
- * More glass depth, caustic, chromatic aberration
+ * ATEX — Spinning 3D Glass Coins v4
+ * RULE: logo patterns are EXACT and UNCHANGED — only the coin material changes.
+ * Each coin = circular disc, scalloped rim, spins rotateY, floats up/down.
+ * Material: glass — translucent body, caustic, rim light, liquid inside.
  */
 
-/* ─── Token data ─────────────────────────────────────────────── */
+/* ─── Token palette ──────────────────────────────────────────── */
 const TOKENS = [
-  { sym: "BTC", hi: "#FFE0A0", mid: "#F7931A", lo: "#7a3a00", glow: "#F7931A", liq: "#F7931Aaa" },
-  { sym: "ETH", hi: "#c4d8ff", mid: "#627EEA", lo: "#1a2e88", glow: "#627EEA", liq: "#627EEAaa" },
-  { sym: "BNB", hi: "#FFF0A0", mid: "#F0B90B", lo: "#7a5500", glow: "#F0B90B", liq: "#F0B90Baa" },
-  { sym: "SOL", hi: "#a0ffec", mid: "#9945FF", lo: "#2e0e70", glow: "#9945FF", liq: "#9945FFaa" },
-  { sym: "POL", hi: "#d4bfff", mid: "#8247E5", lo: "#2e0e80", glow: "#8247E5", liq: "#8247E5aa" },
+  { sym: "BTC", coinColor: "#F7931A", hi: "#FFE0A0", lo: "#7a3a00", glow: "#F7931A", liq: "#F7931A" },
+  { sym: "ETH", coinColor: "#627EEA", hi: "#c4d8ff", lo: "#1a2e88", glow: "#627EEA", liq: "#627EEA" },
+  { sym: "BNB", coinColor: "#F0B90B", hi: "#FFF0A0", lo: "#7a5500", glow: "#F0B90B", liq: "#F0B90B" },
+  { sym: "SOL", coinColor: "#9945FF", hi: "#a0ffec", lo: "#1a004a", glow: "#9945FF", liq: "#9945FF" },
+  { sym: "POL", coinColor: "#8247E5", hi: "#d4bfff", lo: "#2e0e80", glow: "#8247E5", liq: "#8247E5" },
 ];
 
-/* ─── Corrected SVG paths (32×32 viewBox) ──────────────────────
-   BTC: official bitcoin "₿" path
-   ETH: separate face polygons for 3D decomposition
-   BNB: 5-diamond cross (correct BNB logo)
-   SOL: 3 parallelogram bars (correct Solana logo)
-   POL: hexagon network shape
-────────────────────────────────────────────────────────────── */
+/* ─── Logo paths (32×32 viewBox) — UNCHANGED ────────────────── */
+
+// BTC: exact Bitcoin ₿ symbol
 const BTC_PATH = "M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z";
 
-// BNB: 5 diamonds in cross pattern (top, left, center, right, bottom)
+// ETH: two stacked rhombus shapes (octahedron projection)
+const ETH_PATH = "M16,4 L8,16 L16,20 L24,16 Z M8,17.5 L16,21.5 L24,17.5 L16,29 Z";
+
+// BNB: 5 diamonds in cross pattern — top/left/center/right/bottom
 const BNB_PATH = [
-  "M16,4   L19.5,8  L16,12  L12.5,8  Z",   // top diamond
-  "M4,16   L8,12.5  L12,16  L8,19.5  Z",   // left diamond
-  "M28,16  L24,12.5 L20,16  L24,19.5 Z",   // right diamond
-  "M16,28  L12.5,24 L16,20  L19.5,24 Z",   // bottom diamond
-  "M12,16  L16,12   L20,16  L16,20   Z",   // center diamond
+  "M16,4   L19.5,8   L16,12  L12.5,8  Z",
+  "M4,16   L8,12.5   L12,16  L8,19.5  Z",
+  "M28,16  L24,12.5  L20,16  L24,19.5 Z",
+  "M16,28  L12.5,24  L16,20  L19.5,24 Z",
+  "M12,16  L16,12    L20,16  L16,20   Z",
 ].join(" ");
 
-// SOL: 3 parallelogram bars — separate paths with individual gradients
-// Each bar is a proper parallelogram (both left & right edges diagonal)
-// Official Solana geometry: top shifts +3.5px right, bottom is horizontal reference
-const SOL_BAR_PATHS = [
-  "M5,9    L25,9    L28.5,5.5 L8.5,5.5  Z",  // top bar    (cyan)
-  "M5,17   L25,17   L28.5,13.5 L8.5,13.5 Z",  // mid bar    (cyan→purple)
-  "M5,25   L25,25   L28.5,21.5 L8.5,21.5 Z",  // bottom bar (purple→pink)
+// SOL: 3 parallelogram bars (official geometry — both edges diagonal)
+//   Bottom-left to bottom-right: horizontal
+//   Right/left edges: both angled upward-right by same offset
+const SOL_BAR_DEFS = [
+  { path: "M5,9    L25,9    L28.5,5.5  L8.5,5.5  Z", from: "#00F0C8", to: "#44D0A8" },  // top: cyan
+  { path: "M5,17   L25,17   L28.5,13.5 L8.5,13.5 Z", from: "#6AB8FF", to: "#9945FF" },  // mid: blue→purple
+  { path: "M5,25   L25,25   L28.5,21.5 L8.5,21.5 Z", from: "#CC44FF", to: "#FF33AA" },  // bot: purple→pink
 ];
-// Combined for clip/shadow usage
-const SOL_BARS = SOL_BAR_PATHS.join(" ");
-// Per-bar gradient stops: [from, to]
-const SOL_BAR_COLORS = [
-  ["#00F0C8", "#48D0B0"],  // top:    teal/cyan
-  ["#6AB8FF", "#9945FF"],  // mid:    cyan-blue to purple
-  ["#CC44FF", "#FF33AA"],  // bottom: purple to hot pink
-] as const;
+const SOL_PATH = SOL_BAR_DEFS.map(b => b.path).join(" ");
 
-// ETH faces for 3D decomposition
-const ETH_TOP = "M16,4  L8,16  L16,20  L24,16  Z";
-const ETH_BOT = "M8,17.5 L16,21.5 L24,17.5 L16,29 Z";
-const ETH_LF  = "M16,4  L8,16  L16,12 Z";
-const ETH_RF  = "M16,4  L24,16 L16,12 Z";
-const ETH_LB  = "M8,17.5 L16,21.5 L16,13 Z";
-const ETH_RB  = "M24,17.5 L16,21.5 L16,13 Z";
-
+// POL: double hexagon / network shape
 const POL_PATH = "M20,12 L16,9.7 L12,12 L12,16.6 L16,18.9 L20,16.6 Z M16,5 L23,9 L23,17 L16,21 L9,17 L9,9 Z";
 
-function getPath(sym: string) {
+function getLogoPath(sym: string): string {
   if (sym === "BTC") return BTC_PATH;
+  if (sym === "ETH") return ETH_PATH;
   if (sym === "BNB") return BNB_PATH;
-  if (sym === "SOL") return SOL_BARS;
-  if (sym === "POL") return POL_PATH;
-  return `${ETH_TOP} ${ETH_BOT}`;
+  if (sym === "SOL") return SOL_PATH;
+  return POL_PATH;
 }
 
-/* ─── Liquid fill (slow slosh inside clip) ───────────────────── */
-function LiquidFill({ id, color, hi }: { id: string; color: string; hi: string }) {
+/* ─── Scalloped coin rim (gear shape) ───────────────────────── */
+function makeGear(cx: number, cy: number, teeth: number, rO: number, rI: number): string {
+  const pts: string[] = [];
+  for (let i = 0; i < teeth * 2; i++) {
+    const a = (i * Math.PI) / teeth - Math.PI / 2;
+    const r = i % 2 === 0 ? rO : rI;
+    pts.push(`${(cx + r * Math.cos(a)).toFixed(3)},${(cy + r * Math.sin(a)).toFixed(3)}`);
+  }
+  return `M${pts[0]} ${pts.slice(1).map(p => `L${p}`).join(" ")} Z`;
+}
+const COIN_RIM = makeGear(16, 16, 22, 15.6, 14.3);
+
+/* ─── Liquid slosh inside coin ───────────────────────────────── */
+function CoinLiquid({ id, color }: { id: string; color: string }) {
   return (
     <>
       <style>{`
         @keyframes ${id}-slosh {
-          0%,100%{transform:translateX(0px)   translateY(0px)   rotate(-2deg)}
-          25%    {transform:translateX(6px)    translateY(-4px)  rotate(1.5deg)}
-          50%    {transform:translateX(-2px)   translateY(-8px)  rotate(-3deg)}
-          75%    {transform:translateX(-6px)   translateY(-3px)  rotate(2deg)}
+          0%,100%{transform:translateX(0)   translateY(0)  }
+          30%    {transform:translateX(4px)  translateY(-3px)}
+          60%    {transform:translateX(-4px) translateY(-5px)}
         }
         @keyframes ${id}-surface {
-          0%,100%{transform:translateX(0px)  scaleY(1)   }
-          33%    {transform:translateX(5px)   scaleY(0.85)}
-          66%    {transform:translateX(-5px)  scaleY(1.1) }
+          0%,100%{transform:scaleX(1)   translateX(0)  }
+          40%    {transform:scaleX(0.88) translateX(3px) }
+          70%    {transform:scaleX(1.08) translateX(-2px)}
         }
-        @keyframes ${id}-bubble {
-          0%,100%{opacity:.25;transform:translateY(0)   scale(1)  }
-          50%    {opacity:.55;transform:translateY(-6px) scale(1.2)}
+        @keyframes ${id}-bubble1 {
+          0%,100%{opacity:0;    transform:translateY(0)  }
+          50%    {opacity:.5;   transform:translateY(-5px)}
         }
-        @keyframes ${id}-glow {
-          0%,100%{opacity:.35} 50%{opacity:.65}
+        @keyframes ${id}-bubble2 {
+          0%,100%{opacity:0;    transform:translateY(0)  }
+          50%    {opacity:.4;   transform:translateY(-4px)}
         }
       `}</style>
-
-      {/* Deep liquid body */}
-      <g style={{ animation: `${id}-slosh 8s ease-in-out infinite` }}>
-        <ellipse cx="16" cy="26" rx="18" ry="14"
-          fill={color} opacity="0.45"
-          style={{ filter: "blur(0.4px)" }}/>
+      {/* Liquid body */}
+      <g style={{ animation: `${id}-slosh 9s ease-in-out infinite` }}>
+        <ellipse cx="16" cy="22" rx="14" ry="10" fill={color} opacity="0.55"/>
       </g>
-
-      {/* Mid liquid layer (slightly different phase) */}
-      <g style={{ animation: `${id}-slosh 8s ease-in-out infinite`, animationDelay: "-2s" }}>
-        <ellipse cx="16" cy="22" rx="14" ry="10"
-          fill={hi} opacity="0.18"
-          style={{ filter: "blur(0.6px)" }}/>
+      {/* Liquid surface */}
+      <g style={{ animation: `${id}-surface 7s ease-in-out infinite`, transformOrigin: "16px 17px" }}>
+        <ellipse cx="16" cy="17" rx="11" ry="2" fill="white" opacity="0.2"/>
+        <ellipse cx="14" cy="16.5" rx="4.5" ry="0.9" fill="white" opacity="0.35"/>
       </g>
-
-      {/* Surface shimmer */}
-      <g style={{ animation: `${id}-surface 6s ease-in-out infinite`, transformOrigin: "16px 18px" }}>
-        <ellipse cx="16" cy="18" rx="13" ry="2.5"
-          fill="white" opacity="0.22"
-          style={{ filter: "blur(0.3px)" }}/>
-        <ellipse cx="14" cy="17.5" rx="5" ry="1"
-          fill="white" opacity="0.35"/>
+      {/* Bubbles */}
+      <g style={{ animation: `${id}-bubble1 6s ease-in-out infinite` }}>
+        <circle cx="12" cy="14" r="0.9" fill="white" opacity="0"/>
       </g>
-
-      {/* Rising bubble 1 */}
-      <g style={{ animation: `${id}-bubble 5s ease-in-out infinite` }}>
-        <circle cx="12" cy="15" r="1.2" fill="white" opacity="0.22"/>
+      <g style={{ animation: `${id}-bubble2 8s ease-in-out infinite`, animationDelay: "-3s" }}>
+        <circle cx="19" cy="16" r="0.65" fill="white" opacity="0"/>
       </g>
-      {/* Rising bubble 2 */}
-      <g style={{ animation: `${id}-bubble 7s ease-in-out infinite`, animationDelay: "-2s" }}>
-        <circle cx="19" cy="18" r="0.8" fill="white" opacity="0.18"/>
-      </g>
-
-      {/* Inner glow pulse */}
-      <ellipse cx="16" cy="20" rx="10" ry="8"
-        fill={color} opacity="0"
-        style={{ animation: `${id}-glow 4s ease-in-out infinite`, filter: "blur(2px)" }}/>
     </>
   );
 }
 
-/* ─── Shared glass token renderer ────────────────────────────── */
-function GlassToken3D({
-  sym, hi, mid, lo, glow, liq,
-  variant,
-}: typeof TOKENS[0] & { variant: "A" | "B" | "C" }) {
-  const id = `gt-${variant.toLowerCase()}-${sym.toLowerCase()}`;
-  const S = 210;
+/* ─── Single glass coin ──────────────────────────────────────── */
+type CoinVariant = "A" | "B" | "C";
 
-  /* ETH gets special facet treatment in variant A */
-  const isETH = sym === "ETH";
+function GlassCoin({ sym, coinColor, hi, lo, glow, liq, variant }: typeof TOKENS[0] & { variant: CoinVariant }) {
+  const id = `c-${variant.toLowerCase()}-${sym.toLowerCase()}`;
+  const S = 200;
   const isSOL = sym === "SOL";
-  const path = getPath(sym);
 
-  /* Per-variant timing for bob/rock */
-  const bobDur   = variant === "A" ? 5.2 : variant === "B" ? 4.8 : 6;
-  const rockDur  = variant === "A" ? 9   : variant === "B" ? 8   : 11;
-  const liqSpeed = variant === "C" ? 10  : 7;
+  /* Spin speed + tint per variant */
+  const spinDur = variant === "A" ? 7 : variant === "B" ? 9 : 6;
+  const bobDur  = variant === "A" ? 4 : variant === "B" ? 5 : 3.5;
+  /* Glass opacity: A=cool-clear, B=neutral, C=dark */
+  const bodyOp  = variant === "A" ? 0.52 : variant === "B" ? 0.45 : 0.60;
+  /* Variant tint overlay */
+  const tintColor = variant === "A" ? "rgba(140,200,255,0.15)"
+                  : variant === "B" ? "rgba(255,255,255,0.08)"
+                  : "rgba(20,10,40,0.25)";
 
-  /* Glass tint: A=cold blue, B=neutral clear, C=warm iridescent */
-  const glassA = `rgba(80,150,255,0.22)`;
-  const glassC = `rgba(255,200,100,0.12)`;
-  const glassMid = variant === "A" ? glassA : variant === "C" ? glassC : "rgba(255,255,255,0.08)";
+  const logoPath = getLogoPath(sym);
 
   return (
     <div style={{
       width: S, height: S,
-      filter: `drop-shadow(0 26px 50px ${glow}77) drop-shadow(0 0 90px ${glow}44) drop-shadow(0 0 140px ${glow}22)`,
+      filter: `drop-shadow(0 18px 35px ${glow}88) drop-shadow(0 0 70px ${glow}44)`,
     }}>
       <style>{`
-        @keyframes ${id}-rock {
-          0%,100%{transform:rotateY(-16deg) rotateX(10deg)}
-          25%    {transform:rotateY(12deg)  rotateX(4deg)}
-          50%    {transform:rotateY(-4deg)  rotateX(14deg)}
-          75%    {transform:rotateY(10deg)  rotateX(6deg)}
-        }
-        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
-        @keyframes ${id}-liqrock {
-          0%,100%{transform:translateX(0)   translateY(0)}
-          25%    {transform:translateX(7px)  translateY(-5px)}
-          50%    {transform:translateX(-3px) translateY(-9px)}
-          75%    {transform:translateX(-7px) translateY(-4px)}
-        }
+        @keyframes ${id}-bob  { 0%,100%{transform:translateY(0px)}  50%{transform:translateY(-18px)} }
+        @keyframes ${id}-spin { from{transform:rotateY(0deg)} to{transform:rotateY(360deg)} }
       `}</style>
 
-      <div style={{ animation: `${id}-bob ${bobDur}s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
+      {/* Bob wrapper */}
+      <div style={{ animation: `${id}-bob ${bobDur}s ease-in-out infinite` }}>
+        {/* Spin wrapper */}
         <div style={{
-          animation: `${id}-rock ${rockDur}s ease-in-out infinite`,
-          transformStyle: "preserve-3d", perspective: 700, width: S, height: S,
+          width: S, height: S,
+          animation: `${id}-spin ${spinDur}s linear infinite`,
+          perspective: "700px",
+          transformStyle: "preserve-3d",
         }}>
           <svg viewBox="0 0 32 32" width={S} height={S} overflow="visible">
             <defs>
-              {/* === Gradients === */}
-              <linearGradient id={`${id}-g-main`} x1="0.15" y1="0" x2="0.85" y2="1">
-                <stop offset="0%"   stopColor={hi}  stopOpacity="0.95"/>
-                <stop offset="35%"  stopColor={mid}  stopOpacity="0.8"/>
-                <stop offset="70%"  stopColor={mid}  stopOpacity="0.6"/>
-                <stop offset="100%" stopColor={lo}   stopOpacity="0.85"/>
-              </linearGradient>
-
-              <radialGradient id={`${id}-g-cau1`} cx="28%" cy="22%" r="42%">
-                <stop offset="0%"   stopColor="white" stopOpacity="0.75"/>
-                <stop offset="45%"  stopColor={hi}    stopOpacity="0.35"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              <radialGradient id={`${id}-g-cau2`} cx="72%" cy="75%" r="32%">
-                <stop offset="0%"   stopColor={hi}   stopOpacity="0.5"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              <radialGradient id={`${id}-g-cau3`} cx="50%" cy="50%" r="55%">
-                <stop offset="0%"   stopColor={mid}  stopOpacity="0.2"/>
-                <stop offset="100%" stopColor={lo}   stopOpacity="0.05"/>
+              {/* ── Gradients ── */}
+              <radialGradient id={`${id}-rim-g`} cx="35%" cy="30%" r="65%">
+                <stop offset="0%"  stopColor={hi}     stopOpacity="0.9"/>
+                <stop offset="50%" stopColor={coinColor} stopOpacity="0.7"/>
+                <stop offset="100%" stopColor={lo}    stopOpacity="0.85"/>
               </radialGradient>
 
-              <linearGradient id={`${id}-g-rim`} x1="0" y1="0" x2="0.7" y2="1">
-                <stop offset="0%"   stopColor="white"  stopOpacity="1"/>
-                <stop offset="40%"  stopColor={hi}     stopOpacity="0.6"/>
-                <stop offset="100%" stopColor={mid}    stopOpacity="0.1"/>
+              <radialGradient id={`${id}-face-g`} cx="38%" cy="30%" r="70%">
+                <stop offset="0%"  stopColor={hi}     stopOpacity={bodyOp + 0.15}/>
+                <stop offset="45%" stopColor={coinColor} stopOpacity={bodyOp}/>
+                <stop offset="100%" stopColor={lo}    stopOpacity={bodyOp + 0.1}/>
+              </radialGradient>
+
+              {/* Caustic light */}
+              <radialGradient id={`${id}-cau1`} cx="30%" cy="25%" r="45%">
+                <stop offset="0%"  stopColor="white"  stopOpacity="0.65"/>
+                <stop offset="40%" stopColor={hi}     stopOpacity="0.25"/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </radialGradient>
+              <radialGradient id={`${id}-cau2`} cx="68%" cy="72%" r="35%">
+                <stop offset="0%"  stopColor={hi}  stopOpacity="0.4"/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </radialGradient>
+
+              {/* Rim edge gradient */}
+              <linearGradient id={`${id}-edge`} x1="0" y1="0" x2="0.5" y2="1">
+                <stop offset="0%"  stopColor="white"  stopOpacity="0.9"/>
+                <stop offset="55%" stopColor={hi}     stopOpacity="0.4"/>
+                <stop offset="100%" stopColor={lo}   stopOpacity="0.1"/>
               </linearGradient>
 
-              {/* Chromatic aberration gradients */}
-              <linearGradient id={`${id}-g-chr-r`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#ff6666" stopOpacity="0.25"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </linearGradient>
-              <linearGradient id={`${id}-g-chr-b`} x1="1" y1="0" x2="0" y2="0">
-                <stop offset="0%" stopColor="#6666ff" stopOpacity="0.2"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </linearGradient>
-
-              {/* Glass tint for inner body */}
-              <radialGradient id={`${id}-g-tint`} cx="50%" cy="45%" r="60%">
-                <stop offset="0%"   stopColor={glassMid}/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              {/* Logo fill */}
+              <radialGradient id={`${id}-logo-g`} cx="35%" cy="28%" r="60%">
+                <stop offset="0%"  stopColor="white"   stopOpacity="0.95"/>
+                <stop offset="60%" stopColor="white"   stopOpacity="0.75"/>
+                <stop offset="100%" stopColor={hi}    stopOpacity="0.5"/>
               </radialGradient>
 
               {/* Filters */}
-              <filter id={`${id}-f-glow`}>
-                <feGaussianBlur stdDeviation="2.5" result="blur"/>
-                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
-              </filter>
-              <filter id={`${id}-f-bloom`}><feGaussianBlur stdDeviation="1.8"/></filter>
-              <filter id={`${id}-f-soft`}><feGaussianBlur stdDeviation="0.35"/></filter>
-              <filter id={`${id}-f-liquid`}><feGaussianBlur stdDeviation="0.5"/></filter>
+              <filter id={`${id}-blur`}><feGaussianBlur stdDeviation="0.4"/></filter>
+              <filter id={`${id}-glow`}><feGaussianBlur stdDeviation="1.6"/></filter>
 
-              {/* SOL: per-bar gradients (diagonal, matching the logo gradient direction) */}
-              {isSOL && SOL_BAR_COLORS.map(([from, to], i) => (
-                <linearGradient key={i} id={`${id}-sol-bar-${i}`} x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%"   stopColor={from} stopOpacity="0.95"/>
-                  <stop offset="100%" stopColor={to}   stopOpacity="0.85"/>
+              {/* Clip: coin face circle */}
+              <clipPath id={`${id}-face-clip`}>
+                <circle cx="16" cy="16" r="13.2"/>
+              </clipPath>
+
+              {/* SOL per-bar clip paths */}
+              {isSOL && SOL_BAR_DEFS.map((b, i) => (
+                <clipPath key={i} id={`${id}-sol-${i}`}><path d={b.path}/></clipPath>
+              ))}
+              {isSOL && SOL_BAR_DEFS.map((b, i) => (
+                <linearGradient key={i} id={`${id}-sol-g-${i}`} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%"  stopColor={b.from} stopOpacity="1"/>
+                  <stop offset="100%" stopColor={b.to}  stopOpacity="0.9"/>
                 </linearGradient>
               ))}
-              {isSOL && SOL_BAR_COLORS.map(([from, to], i) => (
-                <radialGradient key={i} id={`${id}-sol-hi-${i}`} cx="30%" cy="30%" r="55%">
-                  <stop offset="0%"   stopColor="white" stopOpacity="0.6"/>
-                  <stop offset="60%"  stopColor={from}  stopOpacity="0.2"/>
-                  <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-                </radialGradient>
-              ))}
-              {isSOL && SOL_BAR_PATHS.map((_, i) => (
-                <clipPath key={i} id={`${id}-sol-clip-${i}`}>
-                  <path d={SOL_BAR_PATHS[i]}/>
-                </clipPath>
-              ))}
-
-              {/* ClipPath for liquid (whole shape) */}
-              <clipPath id={`${id}-clip`}><path d={path}/></clipPath>
-              {isETH && (
-                <clipPath id={`${id}-clip-eth`}>
-                  <path d={`${ETH_TOP} ${ETH_BOT}`}/>
-                </clipPath>
-              )}
             </defs>
 
-            {/* ── 1. Back bloom glow ── */}
-            <g filter={`url(#${id}-f-bloom)`} opacity="0.6">
-              <path d={path} fill={mid} transform="scale(1.06) translate(-0.96,-0.96)"/>
+            {/* ── 1. Outer glow bloom ── */}
+            <g filter={`url(#${id}-glow)`} opacity="0.55">
+              <path d={COIN_RIM} fill={coinColor}/>
             </g>
 
-            {/* ── 2. Extrusion depth stack (thickness, skip SOL — handled per-bar) ── */}
-            {!isSOL && [4, 3, 2, 1].map(d => (
-              <path key={d} d={path}
-                fill={lo} opacity={0.28 - d * 0.05}
-                transform={`translate(${d * 0.75}, ${d * 1.0})`}
-                filter={d === 4 ? `url(#${id}-f-soft)` : undefined}
-              />
-            ))}
+            {/* ── 2. Scalloped rim ── */}
+            <path d={COIN_RIM} fill={`url(#${id}-rim-g)`} opacity="0.82"/>
+            {/* Rim specular top-left */}
+            <path d={COIN_RIM} fill="none"
+              stroke="white" strokeWidth="0.3" opacity="0.45"
+              strokeDasharray="1.5,0.8"
+            />
 
-            {/* ── 3. LIQUID FILL (inside clip, skip SOL — handled per-bar) ── */}
-            {!isSOL && (
-              <g clipPath={`url(#${id}-clip)`}
-                style={{ animation: `${id}-liqrock ${liqSpeed}s ease-in-out infinite` }}>
-                <LiquidFill id={`${id}-liq`} color={liq} hi={hi} />
-              </g>
-            )}
+            {/* ── 3. Coin face base ── */}
+            <circle cx="16" cy="16" r="13.2" fill={`url(#${id}-face-g)`}/>
 
-            {/* ── 4. Main glass body ── */}
-            {isSOL ? (
-              /* SOL: render each bar separately with its own gradient + glass highlight */
-              <g>
-                {SOL_BAR_PATHS.map((barPath, i) => (
-                  <g key={i}>
-                    {/* Extrusion depth for this bar */}
-                    {[3,2,1].map(d => (
-                      <path key={d} d={barPath} fill="#1a0050"
-                        opacity={0.22 - d*0.04}
-                        transform={`translate(${d*0.65},${d*0.9})`}/>
-                    ))}
-                    {/* Bar body */}
-                    <path d={barPath} fill={`url(#${id}-sol-bar-${i})`} opacity="0.92"/>
-                    {/* Glass highlight */}
-                    <path d={barPath} fill={`url(#${id}-sol-hi-${i})`}/>
-                    {/* Rim */}
-                    <path d={barPath} fill="none" stroke="white" strokeWidth="0.25" opacity="0.55"/>
-                    {/* Liquid inside each bar */}
-                    <g clipPath={`url(#${id}-sol-clip-${i})`}
-                       style={{ animation: `${id}-liqrock ${7 + i}s ease-in-out infinite`, animationDelay: `${-i*2}s` }}>
-                      <LiquidFill id={`${id}-liq-sol-${i}`} color={SOL_BAR_COLORS[i][0] + "99"} hi={SOL_BAR_COLORS[i][1]}/>
+            {/* ── 4. Liquid inside ── */}
+            <g clipPath={`url(#${id}-face-clip)`}>
+              <CoinLiquid id={`${id}-liq`} color={liq}/>
+            </g>
+
+            {/* ── 5. Logo (exact, unchanged) ── */}
+            <g clipPath={`url(#${id}-face-clip)`}>
+              {isSOL ? (
+                /* SOL: each bar has its own gradient color */
+                <g transform="translate(16,16) scale(0.82) translate(-16,-16)">
+                  {SOL_BAR_DEFS.map((b, i) => (
+                    <g key={i}>
+                      <path d={b.path} fill={`url(#${id}-sol-g-${i})`} opacity="0.92"/>
+                      {/* Glass sheen on bar */}
+                      <path d={b.path} fill="none" stroke="white" strokeWidth="0.22" opacity="0.5"/>
+                      <clipPath id={`${id}-sol-cl-${i}`}><path d={b.path}/></clipPath>
+                      <g clipPath={`url(#${id}-sol-cl-${i})`}>
+                        <ellipse
+                          cx={String(8 + i * 1)} cy={String(6.2 + i * 3.5)}
+                          rx="8" ry="1.5"
+                          fill="white" opacity="0.3"
+                          transform="rotate(-10)"
+                          filter={`url(#${id}-blur)`}
+                        />
+                      </g>
                     </g>
-                    {/* Chromatic aberration per bar */}
-                    <path d={barPath} fill="none" stroke="rgba(255,80,80,0.12)" strokeWidth="1.0" transform="translate(-0.3,0)"/>
-                    <path d={barPath} fill="none" stroke="rgba(80,80,255,0.1)"  strokeWidth="1.0" transform="translate(0.3,0)"/>
-                  </g>
-                ))}
-              </g>
-            ) : (
-              <path d={path} fill={`url(#${id}-g-main)`} opacity="0.78"/>
-            )}
-
-            {/* ── 5. Glass tint (variant-specific) ── */}
-            {!isSOL && <path d={path} fill={`url(#${id}-g-tint)`} opacity="0.55"/>}
-
-            {/* ── 6. ETH special: 3D face decomposition ── */}
-            {isETH && (
-              <g>
-                <path d={ETH_LF}  fill={hi}   opacity="0.35"/>
-                <path d={ETH_RF}  fill={lo}   opacity="0.28"/>
-                <path d={ETH_TOP} fill={mid}   opacity="0.15"/>
-                <path d={ETH_LB}  fill={mid}   opacity="0.2"/>
-                <path d={ETH_RB}  fill={lo}   opacity="0.15"/>
-                <line x1="16" y1="4"  x2="8"  y2="16" stroke="white" strokeWidth="0.35" opacity="0.6"/>
-                <line x1="16" y1="4"  x2="24" y2="16" stroke={hi}    strokeWidth="0.2"  opacity="0.4"/>
-                <line x1="8"  y1="16" x2="24" y2="16" stroke={hi}    strokeWidth="0.25" opacity="0.5"/>
-              </g>
-            )}
-
-            {/* ── 7. Prismatic refraction lines (clipped inside) ── */}
-            <g clipPath={`url(#${id}-clip)`} opacity="0.4">
-              <line x1="-2" y1="11" x2="34" y2="9.5"   stroke="white" strokeWidth="0.45" opacity="0.55"/>
-              <line x1="-2" y1="14" x2="34" y2="12.5"  stroke={hi}    strokeWidth="0.25" opacity="0.35"/>
-              <line x1="-2" y1="20" x2="34" y2="18.5"  stroke={mid}   strokeWidth="0.2"  opacity="0.25"/>
+                  ))}
+                </g>
+              ) : (
+                <g transform="translate(16,16) scale(0.82) translate(-16,-16)">
+                  {/* Logo shadow/depth */}
+                  <path d={logoPath} fill={lo} opacity="0.4" transform="translate(0.3,0.4)"
+                    filter={`url(#${id}-blur)`}/>
+                  {/* Logo main fill */}
+                  <path d={logoPath} fill={`url(#${id}-logo-g)`} opacity="0.9"/>
+                  {/* Logo inner glow */}
+                  <path d={logoPath} fill={hi} opacity="0.2" filter={`url(#${id}-blur)`}/>
+                </g>
+              )}
             </g>
 
-            {/* ── 8. Caustic light spots ── */}
-            <path d={path} fill={`url(#${id}-g-cau1)`}/>
-            <path d={path} fill={`url(#${id}-g-cau2)`}/>
-            <path d={path} fill={`url(#${id}-g-cau3)`}/>
+            {/* ── 6. Glass highlight (large diffuse) ── */}
+            <g clipPath={`url(#${id}-face-clip)`}>
+              <ellipse cx="10.5" cy="8" rx="7" ry="5"
+                fill="white" opacity="0.18"
+                transform="rotate(-25,10.5,8)"
+                filter={`url(#${id}-blur)`}/>
+            </g>
 
-            {/* ── 9. Chromatic aberration fringe ── */}
-            <path d={path} fill="none" stroke="rgba(255,80,80,0.18)" strokeWidth="1.2"
-              transform="translate(-0.4, 0)" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d={path} fill="none" stroke="rgba(80,80,255,0.15)" strokeWidth="1.2"
-              transform="translate(0.4, 0)" strokeLinecap="round" strokeLinejoin="round"/>
+            {/* ── 7. Caustic spots ── */}
+            <circle cx="16" cy="16" r="13.2" fill={`url(#${id}-cau1)`}/>
+            <circle cx="16" cy="16" r="13.2" fill={`url(#${id}-cau2)`}/>
 
-            {/* ── 10. Top-left glass highlight blob ── */}
-            <g clipPath={`url(#${id}-clip)`}>
-              <ellipse cx="11.5" cy="9.5" rx="5.5" ry="3.8"
-                fill="white" opacity="0.28"
-                transform="rotate(-22,11.5,9.5)"
-                filter={`url(#${id}-f-soft)`}/>
-              <ellipse cx="10.5" cy="8.8" rx="2.5" ry="1.6"
+            {/* ── 8. Variant tint overlay ── */}
+            <circle cx="16" cy="16" r="13.2" fill={tintColor}/>
+
+            {/* ── 9. Sharp highlight blob (top-left) ── */}
+            <g clipPath={`url(#${id}-face-clip)`}>
+              <ellipse cx="9.5" cy="7" rx="4.5" ry="2.8"
                 fill="white" opacity="0.5"
-                transform="rotate(-22,10.5,8.8)"/>
+                transform="rotate(-28,9.5,7)"/>
+              <ellipse cx="8.5" cy="6.3" rx="2" ry="1.1"
+                fill="white" opacity="0.8"
+                transform="rotate(-28,8.5,6.3)"/>
             </g>
 
-            {/* ── 11. Rim light (edge glow) ── */}
-            <path d={path} fill="none" stroke={`url(#${id}-g-rim)`} strokeWidth="0.55"/>
-            <path d={path} fill="none" stroke="white" strokeWidth="0.2" opacity="0.6"/>
-
-            {/* ── 12. Bottom edge refraction (second internal reflection) ── */}
-            <g clipPath={`url(#${id}-clip)`}>
-              <ellipse cx="16" cy="26" rx="8" ry="2.5"
-                fill={hi} opacity="0.22" filter={`url(#${id}-f-soft)`}/>
+            {/* ── 10. Prismatic refraction lines ── */}
+            <g clipPath={`url(#${id}-face-clip)`} opacity="0.3">
+              <line x1="3" y1="13" x2="29" y2="11.5" stroke="white" strokeWidth="0.4" opacity="0.5"/>
+              <line x1="3" y1="17" x2="29" y2="15.5" stroke={hi}    strokeWidth="0.22" opacity="0.3"/>
             </g>
 
-            {/* ── 13. Ground shadow + puddle ── */}
-            <ellipse cx="16" cy="31.5" rx="8" ry="1.2"
-              fill={glow} opacity="0.22" filter={`url(#${id}-f-soft)`}/>
-            <g transform="translate(0, 33.5) scale(1, -0.16)" opacity="0.12"
-              filter={`url(#${id}-f-soft)`}>
-              <path d={path} fill={mid}/>
-            </g>
+            {/* ── 11. Chromatic rim ── */}
+            <circle cx="16" cy="16" r="13.2"
+              fill="none" stroke="rgba(255,80,80,0.2)"
+              strokeWidth="0.8" transform="translate(-0.2,0)"/>
+            <circle cx="16" cy="16" r="13.2"
+              fill="none" stroke="rgba(80,80,255,0.15)"
+              strokeWidth="0.8" transform="translate(0.2,0)"/>
+
+            {/* ── 12. Face rim light ── */}
+            <circle cx="16" cy="16" r="13.2"
+              fill="none" stroke={`url(#${id}-edge)`} strokeWidth="0.5"/>
+            <circle cx="16" cy="16" r="13.2"
+              fill="none" stroke="white" strokeWidth="0.2" opacity="0.6"/>
+
+            {/* ── 13. Inner circle bevel line (embossed look) ── */}
+            <circle cx="16" cy="16" r="11.8"
+              fill="none" stroke="white" strokeWidth="0.18" opacity="0.3"/>
+
+            {/* ── 14. Ground shadow ── */}
+            <ellipse cx="16" cy="31.8" rx="9" ry="1.2"
+              fill={glow} opacity="0.25" filter={`url(#${id}-blur)`}/>
+
+            {/* ── 15. Coin edge (3D side visible when not face-on) ── */}
+            <ellipse cx="16" cy="16" rx="15.8" ry="15.8"
+              fill="none" stroke={coinColor} strokeWidth="0.15" opacity="0.3"/>
           </svg>
         </div>
       </div>
@@ -390,13 +328,14 @@ function GlassToken3D({
   );
 }
 
-/* ─── Row label ─────────────────────────────────────────────────── */
+/* ─── Row label ─────────────────────────────────────────────── */
 function RowLabel({ letter, title, color, desc }: { letter: string; title: string; color: string; desc: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
       <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg,${color}55,transparent)` }}/>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}55`,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color }}>
           {letter}
         </div>
         <span style={{ fontSize: 13, fontWeight: 700, color, letterSpacing: 1.5, textTransform: "uppercase" }}>{title}</span>
@@ -407,49 +346,54 @@ function RowLabel({ letter, title, color, desc }: { letter: string; title: strin
   );
 }
 
-/* ─── Main export ───────────────────────────────────────────────── */
+/* ─── Main ───────────────────────────────────────────────────── */
 export default function GlassTokens() {
   return (
-    <div style={{ minHeight: "100vh", background: "#060910", color: "#fff", fontFamily: "system-ui,-apple-system,sans-serif", padding: "36px 20px 60px" }}>
+    <div style={{ minHeight: "100vh", background: "#060910", color: "#fff",
+      fontFamily: "system-ui,-apple-system,sans-serif", padding: "36px 20px 60px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            3D Glass Tokens — жидкость внутри
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8,
+            background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7)",
+            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            Spinning 3D Glass Coins
           </h1>
           <p style={{ color: "rgba(255,255,255,.28)", fontSize: 13 }}>
-            SOL и BNB исправлены · жидкость переливается внутри каждого символа · скажи A, B или C
+            Точный логотип · Монета из стекла · Вращается вокруг оси · Парит
           </p>
         </div>
 
-        {/* ── A: холодное стекло ── */}
+        {/* ── A: холодное прозрачное стекло ── */}
         <div style={{ marginBottom: 70 }}>
-          <RowLabel letter="A" title="Cold Glass" color="#00e5ff"
-            desc="холодный синий отлив, кристальная прозрачность"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="A"/>)}
+          <RowLabel letter="A" title="Cold Crystal Glass" color="#00e5ff"
+            desc="холодный синий отлив, максимум прозрачности"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassCoin key={t.sym} {...t} variant="A"/>)}
           </div>
         </div>
 
         {/* ── B: нейтральное чистое стекло ── */}
         <div style={{ marginBottom: 70 }}>
           <RowLabel letter="B" title="Clear Glass" color="#aaaaff"
-            desc="нейтральное чистое стекло, максимум каустики"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="B"/>)}
+            desc="нейтральное, чистое, сильная каустика"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassCoin key={t.sym} {...t} variant="B"/>)}
           </div>
         </div>
 
-        {/* ── C: тёплое янтарное стекло ── */}
+        {/* ── C: тёмное стекло / обсидиан ── */}
         <div style={{ marginBottom: 48 }}>
-          <RowLabel letter="C" title="Warm Iridescent" color="#a855f7"
-            desc="тёплый иридесцентный отлив, золотые переливы"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="C"/>)}
+          <RowLabel letter="C" title="Dark Obsidian Glass" color="#a855f7"
+            desc="тёмное стекло, глубина, контрастные блики"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassCoin key={t.sym} {...t} variant="C"/>)}
           </div>
         </div>
 
-        <div style={{ textAlign: "center", padding: "18px 24px", borderRadius: 14, background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.07)", color: "rgba(255,255,255,.3)", fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: "18px 24px", borderRadius: 14,
+          background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.07)",
+          color: "rgba(255,255,255,.3)", fontSize: 13 }}>
           Скажи <b style={{ color: "#00e5ff" }}>A</b>, <b style={{ color: "#aaaaff" }}>B</b> или <b style={{ color: "#a855f7" }}>C</b> — применю на биржу + деплой
         </div>
       </div>
