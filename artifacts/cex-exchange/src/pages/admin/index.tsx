@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock, TrendingUp, Coins, Percent, Gift, ArrowDownCircle } from "lucide-react";
+import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock, TrendingUp, Coins, Percent, Gift, ArrowDownCircle, AlertTriangle } from "lucide-react";
 
 type Stats = {
   totalUsers: number;
@@ -30,11 +31,23 @@ async function apiFetch<T>(url: string): Promise<T> {
 
 export default function AdminDashboard() {
   const { logout } = useAdminAuth();
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetDone, setResetDone] = useState(false);
 
   const { data: stats, isLoading } = useQuery<Stats>({
     queryKey: ["admin-stats"],
     queryFn: () => apiFetch("/api/admin/stats"),
     refetchInterval: 30000,
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => fetch("/api/admin/reset-test-balances", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: "RESET" }),
+    }).then(r => r.json()),
+    onSuccess: () => { setResetConfirm(false); setResetDone(true); },
   });
 
   const topAssets = stats
@@ -156,7 +169,7 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick navigation */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-6">
             {[
               { href: "/admin/users", icon: <Users className="w-4 h-4" />, title: "User Management", desc: "View, freeze/unfreeze accounts, adjust balances, access escrow keys" },
               { href: "/admin/transactions", icon: <ArrowDownCircle className="w-4 h-4 text-emerald-400" />, title: "Transaction Monitor", desc: "Real-time deposit & withdrawal monitoring with filters" },
@@ -179,6 +192,42 @@ export default function AdminDashboard() {
               </Link>
             ))}
           </div>
+
+          {/* Danger Zone */}
+          <Card className="border-red-500/30 bg-red-500/5">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-red-400 text-base">
+                <AlertTriangle className="w-4 h-4" /> Danger Zone
+              </CardTitle>
+              <CardDescription>Irreversible actions. Use with caution.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {resetDone && (
+                <div className="text-emerald-400 text-sm bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                  All user balances have been reset to 0.
+                </div>
+              )}
+              <div className="flex items-center justify-between p-3 border border-red-500/20 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">Reset all user balances to 0</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Use once to clear test/demo balances. Real balances from deposits will not be affected going forward.</p>
+                </div>
+                {!resetConfirm ? (
+                  <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10 ml-4 flex-shrink-0"
+                    onClick={() => setResetConfirm(true)}>
+                    Reset Balances
+                  </Button>
+                ) : (
+                  <div className="flex gap-2 ml-4 flex-shrink-0">
+                    <Button size="sm" variant="destructive" onClick={() => resetMutation.mutate()} disabled={resetMutation.isPending}>
+                      {resetMutation.isPending ? "Resetting..." : "Confirm Reset"}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setResetConfirm(false)}>Cancel</Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>

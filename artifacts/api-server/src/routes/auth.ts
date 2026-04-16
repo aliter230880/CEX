@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { db, usersTable, balancesTable } from "@workspace/db";
+import { db, usersTable } from "@workspace/db";
 import { RegisterBody, LoginBody } from "@workspace/api-zod";
 import { requireAuth } from "../lib/session";
 
@@ -36,16 +36,6 @@ router.post("/auth/register", async (req, res): Promise<void> => {
     res.status(500).json({ error: "server_error", message: "Failed to create user" });
     return;
   }
-
-  // Give starter balances
-  const starterBalances = [
-    { userId: user.id, asset: "USDT", available: "10000", locked: "0", network: "ETH" },
-    { userId: user.id, asset: "BTC", available: "0.5", locked: "0", network: "ETH" },
-    { userId: user.id, asset: "ETH", available: "5", locked: "0", network: "ETH" },
-    { userId: user.id, asset: "BNB", available: "10", locked: "0", network: "BNB" },
-    { userId: user.id, asset: "POL", available: "1000", locked: "0", network: "POL" },
-  ];
-  await db.insert(balancesTable).values(starterBalances);
 
   req.session.userId = user.id;
 

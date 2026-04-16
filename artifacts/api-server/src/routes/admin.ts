@@ -807,5 +807,18 @@ router.get("/admin/transactions", adminGuard, async (req: Request, res: Response
   });
 });
 
+// POST /api/admin/reset-test-balances — zero out all user balances (one-time cleanup)
+router.post("/admin/reset-test-balances", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const { confirm } = req.body as { confirm?: string };
+  if (confirm !== "RESET") {
+    res.status(400).json({ error: "confirmation_required", message: 'Send { confirm: "RESET" } to proceed' });
+    return;
+  }
+  const result = await db.update(balancesTable).set({ available: "0", locked: "0" });
+  await audit("reset_test_balances", null, { rows: (result as any).rowCount ?? "unknown" });
+  logger.warn("Admin reset all user balances to 0");
+  res.json({ success: true, message: "All user balances have been reset to 0" });
+});
+
 export default router;
 
