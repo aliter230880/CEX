@@ -69,7 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-4 border-b">
                 <Link href="/" className="flex items-center gap-2 text-xl font-bold text-primary">
-                  <img src="/logo.png" alt="" className="w-7 h-7 object-contain" onError={e => (e.currentTarget.style.display = 'none')} /> ATEX
+                  <img src="/logo.png" alt="" className="w-7 h-7 object-contain" onError={e => (e.currentTarget.style.display = 'none')} /> ATEX<span className="text-sm font-normal text-muted-foreground ml-1">exchange</span>
                 </Link>
               </div>
               <div className="p-2 flex flex-col gap-1">
@@ -88,7 +88,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
           <Link href="/" className="flex items-center gap-2 text-xl font-bold text-primary">
-            <img src="/logo.png" alt="" className="w-7 h-7 object-contain" onError={e => (e.currentTarget.style.display = 'none')} /> ATEX
+            <img src="/logo.png" alt="" className="w-7 h-7 object-contain" onError={e => (e.currentTarget.style.display = 'none')} /> ATEX<span className="text-sm font-normal text-muted-foreground ml-1">exchange</span>
           </Link>
           <nav className="hidden md:flex items-center gap-1 ml-4">
             <NavLinks />
