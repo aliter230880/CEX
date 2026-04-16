@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { seedData } from "./lib/seed";
 import { startDepositMonitor } from "./lib/deposit-monitor";
+import { startPriceFeed } from "./lib/price-feed";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,7 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   seedData();
+  startPriceFeed().catch(err => logger.error({ err }, "Price feed failed to start"));
   if (process.env.WALLET_MNEMONIC) {
     startDepositMonitor();
   } else {

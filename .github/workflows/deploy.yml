@@ -66,6 +66,10 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "=== миграция БД ==="
+            export $(grep -v '^#' .env | xargs -d '\n')
+            pnpm --filter @workspace/db run push
+
             echo "=== сборка API ==="
             pnpm --filter @workspace/api-server run build
 

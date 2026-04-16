@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, bigint, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, bigint, numeric, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -14,7 +14,9 @@ export const klinesTable = pgTable("klines", {
   close: numeric("close", { precision: 28, scale: 8 }).notNull(),
   volume: numeric("volume", { precision: 28, scale: 8 }).notNull().default("0"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  uniqueIndex("klines_pair_interval_open_time_idx").on(t.pair, t.interval, t.openTime),
+]);
 
 export const insertKlineSchema = createInsertSchema(klinesTable).omit({ id: true, createdAt: true });
 export type InsertKline = z.infer<typeof insertKlineSchema>;

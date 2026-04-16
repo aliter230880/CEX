@@ -1,19 +1,20 @@
 import { db, klinesTable, tradingPairsTable, tradesTable } from "@workspace/db";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { logger } from "./logger";
+import { getRealPrice } from "./price-feed";
 
-// Simulated price data (seeded)
-const SEED_PRICES: Record<string, number> = {
-  "BTC/USDT": 67234.50,
-  "ETH/USDT": 3521.80,
-  "BNB/USDT": 598.40,
-  "POL/USDT": 0.8920,
-  "SOL/USDT": 165.20,
-  "USDT/USD": 1.0000,
+// Fallback prices (used only if Binance feed not yet loaded)
+const FALLBACK_PRICES: Record<string, number> = {
+  "BTC/USDT": 67000,
+  "ETH/USDT": 3500,
+  "BNB/USDT": 600,
+  "POL/USDT": 0.90,
+  "SOL/USDT": 165,
+  "USDT/USD": 1.0,
 };
 
 export function getSeedPrice(pair: string): number {
-  return SEED_PRICES[pair] ?? 1.0;
+  return getRealPrice(pair) ?? FALLBACK_PRICES[pair] ?? 1.0;
 }
 
 export async function generateKlines(pair: string, interval: string = "1h", count: number = 100): Promise<void> {
