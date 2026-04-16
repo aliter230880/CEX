@@ -95,7 +95,7 @@ async function scanNetwork(network: string) {
       logger.warn({ err, network, asset }, "Error scanning asset — rotating provider");
       try { provider = rotateProvider(network); } catch { /* ignore */ }
     }
-    await delay(300); // avoid hammering the RPC with batch requests
+    await delay(600); // avoid rate limits on public BSC RPC nodes
   }
 
   // Also scan custom tokens on this network
@@ -115,7 +115,7 @@ async function scanNetwork(network: string) {
         logger.warn({ err, network, token: token.symbol }, "Error scanning custom token — rotating provider");
         try { provider = rotateProvider(network); } catch { /* ignore */ }
       }
-      await delay(300);
+      await delay(600);
     }
   }
 
