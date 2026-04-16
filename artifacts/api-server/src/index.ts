@@ -1,4 +1,4 @@
-// Load missing env vars from .env file (without any external package)
+// Load env vars from .env file (always overrides — .env is the source of truth on server)
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 (function loadDotEnv() {
@@ -12,8 +12,8 @@ import { resolve } from "node:path";
       const eq = line.indexOf("=");
       if (eq < 1) continue;
       const key = line.slice(0, eq).trim();
-      if (!key || process.env[key] !== undefined) continue; // never override existing
-      let val = line.slice(eq + 1).trim();
+      if (!key) continue;
+      let val = line.slice(eq + 1); // keep leading spaces in case value has them
       if ((val.startsWith('"') && val.endsWith('"')) ||
           (val.startsWith("'") && val.endsWith("'"))) {
         val = val.slice(1, -1);
