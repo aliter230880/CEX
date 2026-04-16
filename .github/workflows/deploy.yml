@@ -68,6 +68,12 @@ jobs:
             echo "=== сборка API ==="
             pnpm --filter @workspace/api-server run build
 
+            echo "=== копирование логотипа ==="
+            if [ -f /root/nexex/logo.png ]; then
+              cp /root/nexex/logo.png /root/nexex/artifacts/cex-exchange/dist/public/logo.png
+              echo "logo.png скопирован"
+            fi
+
             echo "=== перезапуск PM2 ==="
             pm2 restart nexex
 

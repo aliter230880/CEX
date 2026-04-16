@@ -48,7 +48,7 @@ export default function AdminLogin() {
             <ShieldAlert className="w-10 h-10 text-destructive" />
           </div>
           <CardTitle className="text-xl">Admin Access</CardTitle>
-          <CardDescription>NexEx Control Panel — Restricted</CardDescription>
+          <CardDescription>ATEX Control Panel — Restricted</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">

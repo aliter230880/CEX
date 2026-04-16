@@ -48,7 +48,7 @@ export default function AdminDashboard() {
         <div className="flex items-center gap-3">
           <Shield className="w-8 h-8 text-primary" />
           <div>
-            <h1 className="text-2xl font-bold">NexEx Admin Panel</h1>
+            <h1 className="text-2xl font-bold">ATEX Admin Panel</h1>
             <p className="text-sm text-muted-foreground">Exchange control & escrow management</p>
           </div>
         </div>

@@ -44,7 +44,7 @@ export default function Register() {
         <CardHeader className="space-y-1 items-center text-center">
           <Activity className="w-12 h-12 text-primary mb-4" />
           <CardTitle className="text-2xl">Create an account</CardTitle>
-          <CardDescription>Join NexEx to start trading</CardDescription>
+          <CardDescription>Join ATEX to start trading</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>

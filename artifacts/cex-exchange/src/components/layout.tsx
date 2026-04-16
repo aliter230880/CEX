@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { useLogout, useGetTradingPairs } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Activity, Wallet, History, LogOut, TrendingUp, Menu } from "lucide-react";
+import { Wallet, History, LogOut, TrendingUp, Menu } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -69,7 +69,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <SheetContent side="left" className="w-64 p-0">
               <div className="p-4 border-b">
                 <Link href="/" className="flex items-center gap-2 text-xl font-bold text-primary">
-                  <Activity className="w-6 h-6" /> NexEx
+                  <img src="/logo.png" alt="ATEX" className="w-7 h-7 object-contain" /> ATEX
                 </Link>
               </div>
               <div className="p-2 flex flex-col gap-1">
@@ -88,7 +88,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
           <Link href="/" className="flex items-center gap-2 text-xl font-bold text-primary">
-            <Activity className="w-6 h-6" /> NexEx
+            <img src="/logo.png" alt="ATEX" className="w-7 h-7 object-contain" /> ATEX
           </Link>
           <nav className="hidden md:flex items-center gap-1 ml-4">
             <NavLinks />
