@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, customTokensTable } from "@workspace/db";
 import { logger } from "./logger";
 import {
@@ -10,6 +10,7 @@ import {
   SUPPORTED_DEPOSIT_ASSETS,
   getRequiredConfirmations,
 } from "./blockchain";
+import { startEtherscanMonitor, stopEtherscanMonitor, resetEtherscanScan } from "./etherscan-monitor";
 
 const ERC20_ABI = [
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -362,16 +363,19 @@ async function creditDeposit(
   logger.info({ userId, asset, network, amount, txHash }, "Deposit credited");
 }
 
-const NETWORKS = ["ETH", "BSC", "POLYGON"];
+// ETH and POLYGON are now handled by the Etherscan monitor (more reliable, full history).
+// Only BSC uses RPC getLogs (bscscan free API not available with our key).
+const NETWORKS = ["BSC"];
 const POLL_INTERVAL_MS = 30_000;
 
 let monitorInterval: NodeJS.Timeout | null = null;
 
 export function startDepositMonitor() {
   if (monitorInterval) return;
-  logger.info("Starting deposit monitor");
+  logger.info("Starting deposit monitor (RPC + Etherscan)");
 
   const run = async () => {
+    // BSC via RPC getLogs (Etherscan V2 free key doesn't cover BSC)
     for (const network of NETWORKS) {
       try {
         await scanNetwork(network);
@@ -381,9 +385,12 @@ export function startDepositMonitor() {
     }
   };
 
-  // Run immediately then on interval
+  // RPC monitor for BSC — every 30s
   run();
   monitorInterval = setInterval(run, POLL_INTERVAL_MS);
+
+  // Etherscan monitor for ETH + POLYGON — every 60s
+  startEtherscanMonitor();
 }
 
 export function stopDepositMonitor() {
@@ -391,4 +398,12 @@ export function stopDepositMonitor() {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
+  stopEtherscanMonitor();
+}
+
+export function resetAllScanBlocks() {
+  for (const network of NETWORKS) {
+    lastScannedBlock[network] = 0n;
+  }
+  resetEtherscanScan();
 }

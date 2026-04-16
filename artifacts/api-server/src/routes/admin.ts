@@ -30,7 +30,7 @@ import {
 } from "../lib/blockchain";
 import { logger } from "../lib/logger";
 import { generateKlines } from "../lib/market-data";
-import { resetScanBlock } from "../lib/deposit-monitor";
+import { resetScanBlock, resetAllScanBlocks } from "../lib/deposit-monitor";
 
 const router = Router();
 
@@ -828,13 +828,16 @@ router.post("/admin/force-rescan", adminGuard, async (req: Request, res: Respons
       return;
     }
     const lb = lookbackBlocks ? BigInt(lookbackBlocks) : defaultLookback[net] ?? 10_000n;
-    // Setting to 0n forces scanNetwork to re-initialise with the lookback on next cycle
+    // Reset RPC scanner
     resetScanBlock(net, 0n);
-    results[net] = `Reset — will scan back ${lb.toString()} blocks on next cycle`;
+    results[net] = `Reset — will re-scan back ${lb.toString()} blocks (RPC) + full history (Etherscan)`;
   }
 
+  // Also reset Etherscan watermarks so it re-fetches all history
+  resetAllScanBlocks();
+
   await audit("force_rescan", null, { networks, lookbackBlocks: lookbackBlocks ?? "default" });
-  logger.warn({ networks, lookbackBlocks }, "Admin triggered force deposit rescan");
+  logger.warn({ networks, lookbackBlocks }, "Admin triggered force deposit rescan (RPC + Etherscan)");
   res.json({ success: true, results });
 });
 
