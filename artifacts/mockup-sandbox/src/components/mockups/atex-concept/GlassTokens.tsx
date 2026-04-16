@@ -1,373 +1,325 @@
 /**
- * ATEX — Pure 3D volumetric token logos
- * No cards. Just the symbols rendered as glass / crystal / liquid 3D objects.
+ * ATEX — 3D volumetric glass token logos v3
+ * Fixed SOL (parallelogram bars) + BNB (5-diamond cross)
+ * Liquid pouring animation inside shapes
+ * More glass depth, caustic, chromatic aberration
  */
 
-/* ─── Token colours ────────────────────────────────────────────── */
+/* ─── Token data ─────────────────────────────────────────────── */
 const TOKENS = [
-  { sym: "BTC", hi: "#FFE0A0", mid: "#F7931A", lo: "#7a3a00", glow: "#F7931A" },
-  { sym: "ETH", hi: "#c4d8ff", mid: "#627EEA", lo: "#1a2e88", glow: "#627EEA" },
-  { sym: "BNB", hi: "#FFF0A0", mid: "#F0B90B", lo: "#7a5500", glow: "#F0B90B" },
-  { sym: "SOL", hi: "#e0c4ff", mid: "#9945FF", lo: "#3c0e9e", glow: "#9945FF" },
-  { sym: "POL", hi: "#d4bfff", mid: "#8247E5", lo: "#2e0e80", glow: "#8247E5" },
+  { sym: "BTC", hi: "#FFE0A0", mid: "#F7931A", lo: "#7a3a00", glow: "#F7931A", liq: "#F7931Aaa" },
+  { sym: "ETH", hi: "#c4d8ff", mid: "#627EEA", lo: "#1a2e88", glow: "#627EEA", liq: "#627EEAaa" },
+  { sym: "BNB", hi: "#FFF0A0", mid: "#F0B90B", lo: "#7a5500", glow: "#F0B90B", liq: "#F0B90Baa" },
+  { sym: "SOL", hi: "#a0ffec", mid: "#9945FF", lo: "#2e0e70", glow: "#9945FF", liq: "#9945FFaa" },
+  { sym: "POL", hi: "#d4bfff", mid: "#8247E5", lo: "#2e0e80", glow: "#8247E5", liq: "#8247E5aa" },
 ];
 
-/* ─── SVG paths (32×32 viewBox) ────────────────────────────────── */
+/* ─── Corrected SVG paths (32×32 viewBox) ──────────────────────
+   BTC: official bitcoin "₿" path
+   ETH: separate face polygons for 3D decomposition
+   BNB: 5-diamond cross (correct BNB logo)
+   SOL: 3 parallelogram bars (correct Solana logo)
+   POL: hexagon network shape
+────────────────────────────────────────────────────────────── */
 const BTC_PATH = "M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z";
-const ETH_TOP  = "M16 4 L8 16 L16 20 L24 16 Z";
-const ETH_BOT  = "M8 17.5 L16 21.5 L24 17.5 L16 29 Z";
-const ETH_LF   = "M16 4 L8 16 L16 12 Z";
-const ETH_RF   = "M16 4 L24 16 L16 12 Z";
-const ETH_LB   = "M8 17.5 L16 21.5 L16 13 Z";
-const ETH_RB   = "M24 17.5 L16 21.5 L16 13 Z";
-const BNB_PATH = "M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z M13.5 13.5l2.5 2.5 2.5-2.5-2.5-2.5z M13.5 18.5l2.5-2.5 2.5 2.5-2.5 2.5z";
-const SOL_PATH = "M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z";
-const POL_PATH = "M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z";
 
-const PATHS: Record<string, string> = {
-  BTC: BTC_PATH, BNB: BNB_PATH, SOL: SOL_PATH, POL: POL_PATH,
-};
+// BNB: 5 diamonds in cross pattern (top, left, center, right, bottom)
+const BNB_PATH = [
+  "M16,4   L19.5,8  L16,12  L12.5,8  Z",   // top diamond
+  "M4,16   L8,12.5  L12,16  L8,19.5  Z",   // left diamond
+  "M28,16  L24,12.5 L20,16  L24,19.5 Z",   // right diamond
+  "M16,28  L12.5,24 L16,20  L19.5,24 Z",   // bottom diamond
+  "M12,16  L16,12   L20,16  L16,20   Z",   // center diamond
+].join(" ");
 
-/* ════════════════════════════════════════════════════════════════
-   VARIANT A — CRYSTAL GEM
-   ETH is decomposed into real 3D facets.
-   Other tokens rendered as crystalline extruded shapes.
-   ════════════════════════════════════════════════════════════════ */
+// SOL: 3 parallelogram bars (official Solana proportions, 32×32 viewbox)
+const SOL_BARS = [
+  "M4.24,10.5  L24.43,10.5  L27.76,7    L7.57,7    Z",  // top bar
+  "M4.24,17    L24.43,17    L27.76,13.5 L7.57,13.5 Z",  // mid bar
+  "M4.24,23.5  L24.43,23.5  L27.76,20   L7.57,20   Z",  // bottom bar
+].join(" ");
 
-function CrystalETH({ hi, mid, lo, glow }: typeof TOKENS[0]) {
-  const id = "cry-eth";
-  const S = 200; // SVG size
+// ETH faces for 3D decomposition
+const ETH_TOP = "M16,4  L8,16  L16,20  L24,16  Z";
+const ETH_BOT = "M8,17.5 L16,21.5 L24,17.5 L16,29 Z";
+const ETH_LF  = "M16,4  L8,16  L16,12 Z";
+const ETH_RF  = "M16,4  L24,16 L16,12 Z";
+const ETH_LB  = "M8,17.5 L16,21.5 L16,13 Z";
+const ETH_RB  = "M24,17.5 L16,21.5 L16,13 Z";
+
+const POL_PATH = "M20,12 L16,9.7 L12,12 L12,16.6 L16,18.9 L20,16.6 Z M16,5 L23,9 L23,17 L16,21 L9,17 L9,9 Z";
+
+function getPath(sym: string) {
+  if (sym === "BTC") return BTC_PATH;
+  if (sym === "BNB") return BNB_PATH;
+  if (sym === "SOL") return SOL_BARS;
+  if (sym === "POL") return POL_PATH;
+  return `${ETH_TOP} ${ETH_BOT}`;
+}
+
+/* ─── Liquid fill (slow slosh inside clip) ───────────────────── */
+function LiquidFill({ id, color, hi }: { id: string; color: string; hi: string }) {
   return (
-    <div style={{ width: S, height: S, filter: `drop-shadow(0 24px 40px ${glow}66) drop-shadow(0 0 80px ${glow}33)` }}>
+    <>
       <style>{`
-        @keyframes ${id}-rock {
-          0%,100%{transform:rotateY(-15deg) rotateX(10deg)}
-          33%    {transform:rotateY(14deg)  rotateX( 6deg)}
-          66%    {transform:rotateY(-6deg)  rotateX(14deg)}
+        @keyframes ${id}-slosh {
+          0%,100%{transform:translateX(0px)   translateY(0px)   rotate(-2deg)}
+          25%    {transform:translateX(6px)    translateY(-4px)  rotate(1.5deg)}
+          50%    {transform:translateX(-2px)   translateY(-8px)  rotate(-3deg)}
+          75%    {transform:translateX(-6px)   translateY(-3px)  rotate(2deg)}
         }
-        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+        @keyframes ${id}-surface {
+          0%,100%{transform:translateX(0px)  scaleY(1)   }
+          33%    {transform:translateX(5px)   scaleY(0.85)}
+          66%    {transform:translateX(-5px)  scaleY(1.1) }
+        }
+        @keyframes ${id}-bubble {
+          0%,100%{opacity:.25;transform:translateY(0)   scale(1)  }
+          50%    {opacity:.55;transform:translateY(-6px) scale(1.2)}
+        }
+        @keyframes ${id}-glow {
+          0%,100%{opacity:.35} 50%{opacity:.65}
+        }
       `}</style>
-      <div style={{ animation: `${id}-bob 5s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
-        <div style={{ animation: `${id}-rock 9s ease-in-out infinite`, transformStyle: "preserve-3d", perspective: 600, width: S, height: S }}>
-          <svg viewBox="0 0 32 32" width={S} height={S} overflow="visible">
-            <defs>
-              <linearGradient id={`${id}-g1`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor={hi} stopOpacity="0.95"/>
-                <stop offset="100%" stopColor={mid} stopOpacity="0.7"/>
-              </linearGradient>
-              <linearGradient id={`${id}-g2`} x1="1" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={mid} stopOpacity="0.75"/>
-                <stop offset="100%" stopColor={lo} stopOpacity="0.5"/>
-              </linearGradient>
-              <linearGradient id={`${id}-g3`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={lo} stopOpacity="0.6"/>
-                <stop offset="100%" stopColor={mid} stopOpacity="0.4"/>
-              </linearGradient>
-              <linearGradient id={`${id}-g4`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={mid} stopOpacity="0.45"/>
-                <stop offset="100%" stopColor={lo} stopOpacity="0.3"/>
-              </linearGradient>
-              <radialGradient id={`${id}-caustic`} cx="38%" cy="30%" r="40%">
-                <stop offset="0%" stopColor="white" stopOpacity="0.45"/>
-                <stop offset="60%" stopColor={hi} stopOpacity="0.15"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              <filter id={`${id}-goo`}><feGaussianBlur stdDeviation="0.4"/></filter>
-            </defs>
 
-            {/* Faint depth copy behind (extrusion shadow) */}
-            <g transform="translate(0.7, 1.4)" opacity="0.25" filter={`url(#${id}-goo)`}>
-              <path d={ETH_TOP} fill={lo}/>
-              <path d={ETH_BOT} fill={lo}/>
-            </g>
+      {/* Deep liquid body */}
+      <g style={{ animation: `${id}-slosh 8s ease-in-out infinite` }}>
+        <ellipse cx="16" cy="26" rx="18" ry="14"
+          fill={color} opacity="0.45"
+          style={{ filter: "blur(0.4px)" }}/>
+      </g>
 
-            {/* Upper gem — 4 facets */}
-            <path d={ETH_LF}  fill={`url(#${id}-g1)`}/>   {/* left-front  (brightest) */}
-            <path d={ETH_RF}  fill={`url(#${id}-g2)`}/>   {/* right-front */}
-            <path d={ETH_TOP} fill={`url(#${id}-g3)`} opacity="0.7"/>
+      {/* Mid liquid layer (slightly different phase) */}
+      <g style={{ animation: `${id}-slosh 8s ease-in-out infinite`, animationDelay: "-2s" }}>
+        <ellipse cx="16" cy="22" rx="14" ry="10"
+          fill={hi} opacity="0.18"
+          style={{ filter: "blur(0.6px)" }}/>
+      </g>
 
-            {/* Lower gem — 2 facets */}
-            <path d={ETH_LB}  fill={`url(#${id}-g3)`} opacity="0.85"/>
-            <path d={ETH_RB}  fill={`url(#${id}-g4)`} opacity="0.9"/>
-            <path d={ETH_BOT} fill={`url(#${id}-g2)`} opacity="0.55"/>
+      {/* Surface shimmer */}
+      <g style={{ animation: `${id}-surface 6s ease-in-out infinite`, transformOrigin: "16px 18px" }}>
+        <ellipse cx="16" cy="18" rx="13" ry="2.5"
+          fill="white" opacity="0.22"
+          style={{ filter: "blur(0.3px)" }}/>
+        <ellipse cx="14" cy="17.5" rx="5" ry="1"
+          fill="white" opacity="0.35"/>
+      </g>
 
-            {/* Caustic light inside */}
-            <path d={ETH_TOP} fill={`url(#${id}-caustic)`}/>
-            <path d={ETH_LF}  fill={`url(#${id}-caustic)`} opacity="0.6"/>
+      {/* Rising bubble 1 */}
+      <g style={{ animation: `${id}-bubble 5s ease-in-out infinite` }}>
+        <circle cx="12" cy="15" r="1.2" fill="white" opacity="0.22"/>
+      </g>
+      {/* Rising bubble 2 */}
+      <g style={{ animation: `${id}-bubble 7s ease-in-out infinite`, animationDelay: "-2s" }}>
+        <circle cx="19" cy="18" r="0.8" fill="white" opacity="0.18"/>
+      </g>
 
-            {/* Bright specular edge on left face */}
-            <line x1="16" y1="4" x2="8" y2="16"  stroke="white" strokeWidth="0.25" opacity="0.7"/>
-            <line x1="16" y1="4" x2="16" y2="12" stroke="white" strokeWidth="0.18" opacity="0.45"/>
-
-            {/* Waist glint */}
-            <line x1="8" y1="16" x2="24" y2="16" stroke={hi} strokeWidth="0.2" opacity="0.6"/>
-
-            {/* Refraction: chromatic fringe on right edge */}
-            <line x1="16" y1="4" x2="24" y2="16" stroke={mid} strokeWidth="0.5" opacity="0.25"/>
-
-            {/* Ground reflection (blurred inverted) */}
-            <g transform="translate(0, 33) scale(1, -0.25)" opacity="0.2">
-              <path d={ETH_TOP} fill={mid}/>
-              <path d={ETH_BOT} fill={mid}/>
-            </g>
-            <ellipse cx="16" cy="31" rx="6" ry="1.2" fill={glow} opacity="0.25"/>
-          </svg>
-        </div>
-      </div>
-    </div>
+      {/* Inner glow pulse */}
+      <ellipse cx="16" cy="20" rx="10" ry="8"
+        fill={color} opacity="0"
+        style={{ animation: `${id}-glow 4s ease-in-out infinite`, filter: "blur(2px)" }}/>
+    </>
   );
 }
 
-function CrystalToken({ sym, hi, mid, lo, glow }: typeof TOKENS[0]) {
-  const id = `cry-${sym.toLowerCase()}`;
-  const path = PATHS[sym] || BTC_PATH;
-  const S = 200;
+/* ─── Shared glass token renderer ────────────────────────────── */
+function GlassToken3D({
+  sym, hi, mid, lo, glow, liq,
+  variant,
+}: typeof TOKENS[0] & { variant: "A" | "B" | "C" }) {
+  const id = `gt-${variant.toLowerCase()}-${sym.toLowerCase()}`;
+  const S = 210;
+
+  /* ETH gets special facet treatment in variant A */
+  const isETH = sym === "ETH";
+  const path = getPath(sym);
+
+  /* Per-variant timing for bob/rock */
+  const bobDur   = variant === "A" ? 5.2 : variant === "B" ? 4.8 : 6;
+  const rockDur  = variant === "A" ? 9   : variant === "B" ? 8   : 11;
+  const liqSpeed = variant === "C" ? 10  : 7;
+
+  /* Glass tint: A=cold blue, B=neutral clear, C=warm iridescent */
+  const glassA = `rgba(80,150,255,0.22)`;
+  const glassC = `rgba(255,200,100,0.12)`;
+  const glassMid = variant === "A" ? glassA : variant === "C" ? glassC : "rgba(255,255,255,0.08)";
+
   return (
-    <div style={{ width: S, height: S, filter: `drop-shadow(0 20px 36px ${glow}66) drop-shadow(0 0 70px ${glow}2a)` }}>
+    <div style={{
+      width: S, height: S,
+      filter: `drop-shadow(0 26px 50px ${glow}77) drop-shadow(0 0 90px ${glow}44) drop-shadow(0 0 140px ${glow}22)`,
+    }}>
       <style>{`
         @keyframes ${id}-rock {
-          0%,100%{transform:rotateY(-14deg) rotateX(9deg)}
-          33%    {transform:rotateY(13deg)  rotateX(5deg)}
-          66%    {transform:rotateY(-7deg)  rotateX(13deg)}
+          0%,100%{transform:rotateY(-16deg) rotateX(10deg)}
+          25%    {transform:rotateY(12deg)  rotateX(4deg)}
+          50%    {transform:rotateY(-4deg)  rotateX(14deg)}
+          75%    {transform:rotateY(10deg)  rotateX(6deg)}
         }
-        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
+        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-16px)} }
+        @keyframes ${id}-liqrock {
+          0%,100%{transform:translateX(0)   translateY(0)}
+          25%    {transform:translateX(7px)  translateY(-5px)}
+          50%    {transform:translateX(-3px) translateY(-9px)}
+          75%    {transform:translateX(-7px) translateY(-4px)}
+        }
       `}</style>
-      <div style={{ animation: `${id}-bob 5.5s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
-        <div style={{ animation: `${id}-rock 10s ease-in-out infinite`, transformStyle: "preserve-3d", perspective: 600, width: S, height: S }}>
+
+      <div style={{ animation: `${id}-bob ${bobDur}s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
+        <div style={{
+          animation: `${id}-rock ${rockDur}s ease-in-out infinite`,
+          transformStyle: "preserve-3d", perspective: 700, width: S, height: S,
+        }}>
           <svg viewBox="0 0 32 32" width={S} height={S} overflow="visible">
             <defs>
-              <linearGradient id={`${id}-main`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor={hi} stopOpacity="0.9"/>
-                <stop offset="55%" stopColor={mid} stopOpacity="0.75"/>
-                <stop offset="100%" stopColor={lo} stopOpacity="0.55"/>
+              {/* === Gradients === */}
+              <linearGradient id={`${id}-g-main`} x1="0.15" y1="0" x2="0.85" y2="1">
+                <stop offset="0%"   stopColor={hi}  stopOpacity="0.95"/>
+                <stop offset="35%"  stopColor={mid}  stopOpacity="0.8"/>
+                <stop offset="70%"  stopColor={mid}  stopOpacity="0.6"/>
+                <stop offset="100%" stopColor={lo}   stopOpacity="0.85"/>
               </linearGradient>
-              <radialGradient id={`${id}-spec`} cx="33%" cy="28%" r="45%">
-                <stop offset="0%" stopColor="white" stopOpacity="0.7"/>
-                <stop offset="50%" stopColor={hi} stopOpacity="0.3"/>
+
+              <radialGradient id={`${id}-g-cau1`} cx="28%" cy="22%" r="42%">
+                <stop offset="0%"   stopColor="white" stopOpacity="0.75"/>
+                <stop offset="45%"  stopColor={hi}    stopOpacity="0.35"/>
                 <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
               </radialGradient>
-              <filter id={`${id}-fr`}><feGaussianBlur stdDeviation="0.6"/></filter>
-              <filter id={`${id}-glo`}><feGaussianBlur stdDeviation="1.2"/></filter>
+              <radialGradient id={`${id}-g-cau2`} cx="72%" cy="75%" r="32%">
+                <stop offset="0%"   stopColor={hi}   stopOpacity="0.5"/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </radialGradient>
+              <radialGradient id={`${id}-g-cau3`} cx="50%" cy="50%" r="55%">
+                <stop offset="0%"   stopColor={mid}  stopOpacity="0.2"/>
+                <stop offset="100%" stopColor={lo}   stopOpacity="0.05"/>
+              </radialGradient>
+
+              <linearGradient id={`${id}-g-rim`} x1="0" y1="0" x2="0.7" y2="1">
+                <stop offset="0%"   stopColor="white"  stopOpacity="1"/>
+                <stop offset="40%"  stopColor={hi}     stopOpacity="0.6"/>
+                <stop offset="100%" stopColor={mid}    stopOpacity="0.1"/>
+              </linearGradient>
+
+              {/* Chromatic aberration gradients */}
+              <linearGradient id={`${id}-g-chr-r`} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#ff6666" stopOpacity="0.25"/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </linearGradient>
+              <linearGradient id={`${id}-g-chr-b`} x1="1" y1="0" x2="0" y2="0">
+                <stop offset="0%" stopColor="#6666ff" stopOpacity="0.2"/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </linearGradient>
+
+              {/* Glass tint for inner body */}
+              <radialGradient id={`${id}-g-tint`} cx="50%" cy="45%" r="60%">
+                <stop offset="0%"   stopColor={glassMid}/>
+                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+              </radialGradient>
+
+              {/* Filters */}
+              <filter id={`${id}-f-glow`}>
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+              </filter>
+              <filter id={`${id}-f-bloom`}><feGaussianBlur stdDeviation="1.8"/></filter>
+              <filter id={`${id}-f-soft`}><feGaussianBlur stdDeviation="0.35"/></filter>
+              <filter id={`${id}-f-liquid`}><feGaussianBlur stdDeviation="0.5"/></filter>
+
+              {/* ClipPath for liquid */}
+              <clipPath id={`${id}-clip`}><path d={path}/></clipPath>
+              {isETH && (
+                <clipPath id={`${id}-clip-eth`}>
+                  <path d={`${ETH_TOP} ${ETH_BOT}`}/>
+                </clipPath>
+              )}
             </defs>
 
-            {/* Glow layer */}
-            <g filter={`url(#${id}-glo)`} opacity="0.55">
-              <path d={path} fill={mid} transform="translate(0.3,0.5)"/>
+            {/* ── 1. Back bloom glow ── */}
+            <g filter={`url(#${id}-f-bloom)`} opacity="0.6">
+              <path d={path} fill={mid} transform="scale(1.06) translate(-0.96,-0.96)"/>
             </g>
 
-            {/* Extrusion depth (3 layers offset) */}
-            {[3, 2, 1].map(d => (
-              <path key={d} d={path} fill={lo}
-                opacity={0.25 - d * 0.04}
-                transform={`translate(${d * 0.7}, ${d * 0.9})`}
-                filter={d === 3 ? `url(#${id}-fr)` : undefined}
+            {/* ── 2. Extrusion depth stack (thickness) ── */}
+            {[4, 3, 2, 1].map(d => (
+              <path key={d} d={path}
+                fill={lo} opacity={0.28 - d * 0.05}
+                transform={`translate(${d * 0.75}, ${d * 1.0})`}
+                filter={d === 4 ? `url(#${id}-f-soft)` : undefined}
               />
             ))}
 
-            {/* Main face */}
-            <path d={path} fill={`url(#${id}-main)`}/>
-
-            {/* Specular highlight */}
-            <path d={path} fill={`url(#${id}-spec)`}/>
-
-            {/* Thin rim light */}
-            <path d={path} fill="none" stroke={hi} strokeWidth="0.22" opacity="0.65"/>
-            <path d={path} fill="none" stroke="white" strokeWidth="0.1" opacity="0.4"/>
-
-            {/* Ground shadow */}
-            <ellipse cx="16" cy="31" rx="7" ry="1.2" fill={glow} opacity="0.2"/>
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════
-   VARIANT B — GLASS MATERIAL (like the BTC blue glass reference)
-   Thick transparent glass with refraction, rim glow, caustic.
-   ════════════════════════════════════════════════════════════════ */
-
-function GlassToken({ sym, hi, mid, lo, glow }: typeof TOKENS[0]) {
-  const id = `gls-${sym.toLowerCase()}`;
-  const path = sym === "ETH" ? `${ETH_TOP} ${ETH_BOT}` : (PATHS[sym] || BTC_PATH);
-  const S = 200;
-  return (
-    <div style={{ width: S, height: S, filter: `drop-shadow(0 22px 44px ${glow}77) drop-shadow(0 0 80px ${glow}33)` }}>
-      <style>{`
-        @keyframes ${id}-rock {
-          0%,100%{transform:rotateY(-16deg) rotateX(8deg)}
-          33%    {transform:rotateY(12deg)  rotateX(3deg)}
-          66%    {transform:rotateY(-8deg)  rotateX(13deg)}
-        }
-        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
-      `}</style>
-      <div style={{ animation: `${id}-bob 5s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
-        <div style={{ animation: `${id}-rock 8.5s ease-in-out infinite`, transformStyle: "preserve-3d", perspective: 600, width: S, height: S }}>
-          <svg viewBox="0 0 32 32" width={S} height={S} overflow="visible">
-            <defs>
-              {/* Glass body gradient — cool tinted like cyan glass */}
-              <linearGradient id={`${id}-body`} x1="0.2" y1="0" x2="0.8" y2="1">
-                <stop offset="0%"   stopColor={hi}  stopOpacity="0.55"/>
-                <stop offset="40%"  stopColor={mid}  stopOpacity="0.65"/>
-                <stop offset="75%"  stopColor={mid}  stopOpacity="0.45"/>
-                <stop offset="100%" stopColor={lo}   stopOpacity="0.7"/>
-              </linearGradient>
-              {/* Inner light scatter (caustic) */}
-              <radialGradient id={`${id}-cau`} cx="30%" cy="25%" r="50%">
-                <stop offset="0%"   stopColor="white" stopOpacity="0.6"/>
-                <stop offset="40%"  stopColor={hi}    stopOpacity="0.3"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              {/* Second caustic spot */}
-              <radialGradient id={`${id}-cau2`} cx="68%" cy="70%" r="35%">
-                <stop offset="0%"   stopColor={hi}   stopOpacity="0.35"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              {/* Edge rim */}
-              <linearGradient id={`${id}-rim`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%"   stopColor="white" stopOpacity="0.9"/>
-                <stop offset="50%"  stopColor={hi}    stopOpacity="0.4"/>
-                <stop offset="100%" stopColor={mid}   stopOpacity="0.15"/>
-              </linearGradient>
-              <filter id={`${id}-blur`}><feGaussianBlur stdDeviation="0.8"/></filter>
-              <filter id={`${id}-gbody`}><feGaussianBlur stdDeviation="1.5"/></filter>
-            </defs>
-
-            {/* Back glow bloom */}
-            <g filter={`url(#${id}-gbody)`} opacity="0.7">
-              <path d={path} fill={mid}/>
+            {/* ── 3. LIQUID FILL (inside clip) ── */}
+            <g clipPath={`url(#${id}-clip)`}
+              style={{ animation: `${id}-liqrock ${liqSpeed}s ease-in-out infinite` }}>
+              <LiquidFill id={`${id}-liq`} color={liq} hi={hi} />
             </g>
 
-            {/* Deep interior volume (darkest, back) */}
-            <path d={path} fill={lo} opacity="0.5" transform="translate(0.4, 0.6)"/>
+            {/* ── 4. Main glass body ── */}
+            <path d={path} fill={`url(#${id}-g-main)`} opacity="0.78"/>
 
-            {/* Glass body */}
-            <path d={path} fill={`url(#${id}-body)`}/>
+            {/* ── 5. Glass tint (variant-specific) ── */}
+            <path d={path} fill={`url(#${id}-g-tint)`} opacity="0.55"/>
 
-            {/* Caustic light 1 */}
-            <path d={path} fill={`url(#${id}-cau)`}/>
-            {/* Caustic light 2 */}
-            <path d={path} fill={`url(#${id}-cau2)`}/>
+            {/* ── 6. ETH special: 3D face decomposition ── */}
+            {isETH && (
+              <g>
+                <path d={ETH_LF}  fill={hi}   opacity="0.35"/>
+                <path d={ETH_RF}  fill={lo}   opacity="0.28"/>
+                <path d={ETH_TOP} fill={mid}   opacity="0.15"/>
+                <path d={ETH_LB}  fill={mid}   opacity="0.2"/>
+                <path d={ETH_RB}  fill={lo}   opacity="0.15"/>
+                <line x1="16" y1="4"  x2="8"  y2="16" stroke="white" strokeWidth="0.35" opacity="0.6"/>
+                <line x1="16" y1="4"  x2="24" y2="16" stroke={hi}    strokeWidth="0.2"  opacity="0.4"/>
+                <line x1="8"  y1="16" x2="24" y2="16" stroke={hi}    strokeWidth="0.25" opacity="0.5"/>
+              </g>
+            )}
 
-            {/* Internal refraction lines (horizontal prismatic bands) */}
-            <clipPath id={`${id}-clip`}><path d={path}/></clipPath>
-            <g clipPath={`url(#${id}-clip)`} opacity="0.3">
-              <line x1="-2" y1="13" x2="34" y2="11" stroke="white" strokeWidth="0.5" opacity="0.6"/>
-              <line x1="-2" y1="15" x2="34" y2="13.5" stroke={hi} strokeWidth="0.3" opacity="0.4"/>
-              <line x1="-2" y1="19" x2="34" y2="17.5" stroke={mid} strokeWidth="0.3" opacity="0.3"/>
+            {/* ── 7. Prismatic refraction lines (clipped inside) ── */}
+            <g clipPath={`url(#${id}-clip)`} opacity="0.4">
+              <line x1="-2" y1="11" x2="34" y2="9.5"   stroke="white" strokeWidth="0.45" opacity="0.55"/>
+              <line x1="-2" y1="14" x2="34" y2="12.5"  stroke={hi}    strokeWidth="0.25" opacity="0.35"/>
+              <line x1="-2" y1="20" x2="34" y2="18.5"  stroke={mid}   strokeWidth="0.2"  opacity="0.25"/>
             </g>
 
-            {/* Rim / edge light (bright outline) */}
-            <path d={path} fill="none" stroke={`url(#${id}-rim)`} strokeWidth="0.4"/>
-            <path d={path} fill="none" stroke="white" strokeWidth="0.15" opacity="0.55"/>
+            {/* ── 8. Caustic light spots ── */}
+            <path d={path} fill={`url(#${id}-g-cau1)`}/>
+            <path d={path} fill={`url(#${id}-g-cau2)`}/>
+            <path d={path} fill={`url(#${id}-g-cau3)`}/>
 
-            {/* Top-left highlight blob */}
+            {/* ── 9. Chromatic aberration fringe ── */}
+            <path d={path} fill="none" stroke="rgba(255,80,80,0.18)" strokeWidth="1.2"
+              transform="translate(-0.4, 0)" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d={path} fill="none" stroke="rgba(80,80,255,0.15)" strokeWidth="1.2"
+              transform="translate(0.4, 0)" strokeLinecap="round" strokeLinejoin="round"/>
+
+            {/* ── 10. Top-left glass highlight blob ── */}
             <g clipPath={`url(#${id}-clip)`}>
-              <ellipse cx="12" cy="10" rx="4.5" ry="3.5" fill="white" opacity="0.18" transform="rotate(-20,12,10)"/>
+              <ellipse cx="11.5" cy="9.5" rx="5.5" ry="3.8"
+                fill="white" opacity="0.28"
+                transform="rotate(-22,11.5,9.5)"
+                filter={`url(#${id}-f-soft)`}/>
+              <ellipse cx="10.5" cy="8.8" rx="2.5" ry="1.6"
+                fill="white" opacity="0.5"
+                transform="rotate(-22,10.5,8.8)"/>
             </g>
 
-            {/* Reflection puddle */}
-            <g transform="translate(0, 33.5) scale(1,-0.2)" opacity="0.15" filter={`url(#${id}-blur)`}>
+            {/* ── 11. Rim light (edge glow) ── */}
+            <path d={path} fill="none" stroke={`url(#${id}-g-rim)`} strokeWidth="0.55"/>
+            <path d={path} fill="none" stroke="white" strokeWidth="0.2" opacity="0.6"/>
+
+            {/* ── 12. Bottom edge refraction (second internal reflection) ── */}
+            <g clipPath={`url(#${id}-clip)`}>
+              <ellipse cx="16" cy="26" rx="8" ry="2.5"
+                fill={hi} opacity="0.22" filter={`url(#${id}-f-soft)`}/>
+            </g>
+
+            {/* ── 13. Ground shadow + puddle ── */}
+            <ellipse cx="16" cy="31.5" rx="8" ry="1.2"
+              fill={glow} opacity="0.22" filter={`url(#${id}-f-soft)`}/>
+            <g transform="translate(0, 33.5) scale(1, -0.16)" opacity="0.12"
+              filter={`url(#${id}-f-soft)`}>
               <path d={path} fill={mid}/>
             </g>
-            <ellipse cx="16" cy="31.5" rx="6.5" ry="1" fill={glow} opacity="0.22"/>
-          </svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════
-   VARIANT C — LIQUID METAL / CHROME
-   Symbol as molten metal — iridescent chrome, liquid surface.
-   ════════════════════════════════════════════════════════════════ */
-
-function LiquidToken({ sym, hi, mid, lo, glow }: typeof TOKENS[0]) {
-  const id = `liq-${sym.toLowerCase()}`;
-  const path = sym === "ETH" ? `${ETH_TOP} ${ETH_BOT}` : (PATHS[sym] || BTC_PATH);
-  const S = 200;
-  return (
-    <div style={{ width: S, height: S, filter: `drop-shadow(0 20px 40px ${glow}88) drop-shadow(0 0 60px ${glow}44)` }}>
-      <style>{`
-        @keyframes ${id}-rock {
-          0%,100%{transform:rotateY(-10deg) rotateX(6deg) scale(1)   }
-          25%    {transform:rotateY( 14deg) rotateX(3deg) scale(1.02)}
-          50%    {transform:rotateY(-4deg)  rotateX(10deg) scale(0.98)}
-          75%    {transform:rotateY(9deg)   rotateX(4deg) scale(1.01)}
-        }
-        @keyframes ${id}-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
-        @keyframes ${id}-shift { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
-      `}</style>
-      <div style={{ animation: `${id}-bob 5.2s ease-in-out infinite`, transformStyle: "preserve-3d" }}>
-        <div style={{ animation: `${id}-rock 8s ease-in-out infinite`, transformStyle: "preserve-3d", perspective: 600, width: S, height: S }}>
-          <svg viewBox="0 0 32 32" width={S} height={S} overflow="visible">
-            <defs>
-              {/* Chrome / liquid metal: multi-stop with cool + warm bands */}
-              <linearGradient id={`${id}-chrome`} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%"   stopColor="white"  stopOpacity="0.95"/>
-                <stop offset="18%"  stopColor={hi}     stopOpacity="0.9"/>
-                <stop offset="35%"  stopColor={mid}    stopOpacity="0.85"/>
-                <stop offset="50%"  stopColor={lo}     stopOpacity="0.95"/>
-                <stop offset="65%"  stopColor={mid}    stopOpacity="0.75"/>
-                <stop offset="80%"  stopColor={hi}     stopOpacity="0.8"/>
-                <stop offset="100%" stopColor="white"  stopOpacity="0.6"/>
-              </linearGradient>
-              <radialGradient id={`${id}-spec1`} cx="28%" cy="22%" r="30%">
-                <stop offset="0%" stopColor="white" stopOpacity="0.9"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              <radialGradient id={`${id}-spec2`} cx="70%" cy="75%" r="22%">
-                <stop offset="0%" stopColor={hi} stopOpacity="0.7"/>
-                <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
-              </radialGradient>
-              {/* Iridescent overlay — rotates through hues */}
-              <linearGradient id={`${id}-iris`} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%"   stopColor={hi}  stopOpacity="0.3"/>
-                <stop offset="30%"  stopColor="white" stopOpacity="0.15"/>
-                <stop offset="55%"  stopColor={mid}  stopOpacity="0.25"/>
-                <stop offset="80%"  stopColor={lo}   stopOpacity="0.3"/>
-                <stop offset="100%" stopColor={hi}  stopOpacity="0.2"/>
-              </linearGradient>
-              <filter id={`${id}-glo`}><feGaussianBlur stdDeviation="2"/></filter>
-              <filter id={`${id}-sharp`}><feGaussianBlur stdDeviation="0.15"/></filter>
-            </defs>
-
-            {/* Outer bloom glow */}
-            <g filter={`url(#${id}-glo)`} opacity="0.8">
-              <path d={path} fill={mid} transform="scale(1.08) translate(-1,-1)"/>
-            </g>
-
-            {/* Base metal body */}
-            <path d={path} fill={`url(#${id}-chrome)`} filter={`url(#${id}-sharp)`}/>
-
-            {/* Iridescent sheen */}
-            <path d={path} fill={`url(#${id}-iris)`} opacity="0.65"/>
-
-            {/* Primary specular hotspot */}
-            <path d={path} fill={`url(#${id}-spec1)`}/>
-            {/* Secondary specular */}
-            <path d={path} fill={`url(#${id}-spec2)`}/>
-
-            {/* Liquid surface micro-detail: thin horizontal sheen lines */}
-            <clipPath id={`${id}-cl`}><path d={path}/></clipPath>
-            <g clipPath={`url(#${id}-cl)`}>
-              {[9, 13.5, 18, 22].map((y, i) => (
-                <line key={i} x1="-2" y1={y} x2="34" y2={y - 0.8 + i * 0.2}
-                  stroke="white" strokeWidth="0.18" opacity={0.12 + i * 0.04}/>
-              ))}
-            </g>
-
-            {/* Hard rim */}
-            <path d={path} fill="none" stroke="white" strokeWidth="0.3" opacity="0.7"/>
-            <path d={path} fill="none" stroke={hi} strokeWidth="0.18" opacity="0.5"/>
-
-            {/* Ground reflection */}
-            <g transform="translate(0,33.5) scale(1,-0.18)" opacity="0.18" filter={`url(#${id}-glo)`}>
-              <path d={path} fill={mid}/>
-            </g>
-            <ellipse cx="16" cy="31.5" rx="7" ry="1" fill={glow} opacity="0.28"/>
           </svg>
         </div>
       </div>
@@ -378,10 +330,10 @@ function LiquidToken({ sym, hi, mid, lo, glow }: typeof TOKENS[0]) {
 /* ─── Row label ─────────────────────────────────────────────────── */
 function RowLabel({ letter, title, color, desc }: { letter: string; title: string; color: string; desc: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 32 }}>
       <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg,${color}55,transparent)` }}/>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ width: 26, height: 26, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900, color }}>
+        <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}22`, border: `1px solid ${color}55`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color }}>
           {letter}
         </div>
         <span style={{ fontSize: 13, fontWeight: 700, color, letterSpacing: 1.5, textTransform: "uppercase" }}>{title}</span>
@@ -395,45 +347,47 @@ function RowLabel({ letter, title, color, desc }: { letter: string; title: strin
 /* ─── Main export ───────────────────────────────────────────────── */
 export default function GlassTokens() {
   return (
-    <div style={{ minHeight: "100vh", background: "#060910", color: "#fff", fontFamily: "system-ui,-apple-system,sans-serif", padding: "36px 20px" }}>
+    <div style={{ minHeight: "100vh", background: "#060910", color: "#fff", fontFamily: "system-ui,-apple-system,sans-serif", padding: "36px 20px 60px" }}>
       <div style={{ maxWidth: 1200, margin: "0 auto" }}>
 
         <div style={{ textAlign: "center", marginBottom: 52 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 6, background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-            3D Token Logos — без плашек
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8, background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            3D Glass Tokens — жидкость внутри
           </h1>
-          <p style={{ color: "rgba(255,255,255,.3)", fontSize: 13 }}>Чистый объём · Только символ · Скажи A, B или C</p>
+          <p style={{ color: "rgba(255,255,255,.28)", fontSize: 13 }}>
+            SOL и BNB исправлены · жидкость переливается внутри каждого символа · скажи A, B или C
+          </p>
         </div>
 
-        {/* ── A: Crystal ── */}
-        <div style={{ marginBottom: 60 }}>
-          <RowLabel letter="A" title="Crystal Prism" color="#00e5ff" desc="огранённые грани, преломление, как ETH-кристалл"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <CrystalETH {...TOKENS[1]} />
-            {TOKENS.filter(t => t.sym !== "ETH").map(t => (
-              <CrystalToken key={t.sym} {...t}/>
-            ))}
+        {/* ── A: холодное стекло ── */}
+        <div style={{ marginBottom: 70 }}>
+          <RowLabel letter="A" title="Cold Glass" color="#00e5ff"
+            desc="холодный синий отлив, кристальная прозрачность"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="A"/>)}
           </div>
         </div>
 
-        {/* ── B: Glass ── */}
-        <div style={{ marginBottom: 60 }}>
-          <RowLabel letter="B" title="Glass Material" color="#627EEA" desc="стеклянная масса, каустика, хроматические кромки, как BTC-референс"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {TOKENS.map(t => <GlassToken key={t.sym} {...t}/>)}
+        {/* ── B: нейтральное чистое стекло ── */}
+        <div style={{ marginBottom: 70 }}>
+          <RowLabel letter="B" title="Clear Glass" color="#aaaaff"
+            desc="нейтральное чистое стекло, максимум каустики"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="B"/>)}
           </div>
         </div>
 
-        {/* ── C: Liquid Metal ── */}
-        <div style={{ marginBottom: 40 }}>
-          <RowLabel letter="C" title="Liquid Metal" color="#a855f7" desc="жидкий хром, иридесцентный блеск, зеркальная поверхность"/>
-          <div style={{ display: "flex", justifyContent: "center", gap: 20, flexWrap: "wrap", alignItems: "flex-end" }}>
-            {TOKENS.map(t => <LiquidToken key={t.sym} {...t}/>)}
+        {/* ── C: тёплое янтарное стекло ── */}
+        <div style={{ marginBottom: 48 }}>
+          <RowLabel letter="C" title="Warm Iridescent" color="#a855f7"
+            desc="тёплый иридесцентный отлив, золотые переливы"/>
+          <div style={{ display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {TOKENS.map(t => <GlassToken3D key={t.sym} {...t} variant="C"/>)}
           </div>
         </div>
 
         <div style={{ textAlign: "center", padding: "18px 24px", borderRadius: 14, background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.07)", color: "rgba(255,255,255,.3)", fontSize: 13 }}>
-          Скажи <b style={{ color: "#00e5ff" }}>A</b>, <b style={{ color: "#627EEA" }}>B</b> или <b style={{ color: "#a855f7" }}>C</b> — и сразу применю на биржу и задеплою
+          Скажи <b style={{ color: "#00e5ff" }}>A</b>, <b style={{ color: "#aaaaff" }}>B</b> или <b style={{ color: "#a855f7" }}>C</b> — применю на биржу + деплой
         </div>
       </div>
     </div>
