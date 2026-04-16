@@ -76,8 +76,12 @@ jobs:
               echo "ADMIN_PASSWORD добавлен"
             fi
 
+            echo "=== загрузка переменных из .env ==="
+            set -a
+            source .env
+            set +a
+
             echo "=== миграция БД ==="
-            export $(grep -v '^#' .env | xargs -d '\n')
             pnpm --filter @workspace/db run push
 
             echo "=== сборка API ==="
@@ -89,8 +93,8 @@ jobs:
               echo "logo.png скопирован"
             fi
 
-            echo "=== перезапуск PM2 ==="
-            pm2 restart nexex
+            echo "=== перезапуск PM2 с обновлением env ==="
+            pm2 restart nexex --update-env
 
             echo "=== готово ==="
             pm2 status nexex
