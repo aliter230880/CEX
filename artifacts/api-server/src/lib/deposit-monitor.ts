@@ -19,18 +19,19 @@ const ERC20_ABI = [
 const lastScannedBlock: Record<string, bigint> = {};
 
 // How far back to scan on FIRST start per network (blocks)
-// Polygon ~2 sec/block → 200 000 blocks ≈ 4.6 days
-// BSC     ~3 sec/block →  50 000 blocks ≈ 1.7 days
-// ETH    ~12 sec/block →   5 000 blocks ≈ 0.7 days
+// Polygon ~2 sec/block → 80 000 blocks ≈ 1.9 days  (publicnode.com max history)
+// BSC     ~3 sec/block → 50 000 blocks ≈ 1.7 days
+// ETH    ~12 sec/block →  5 000 blocks ≈ 0.7 days
 const STARTUP_LOOKBACK: Record<string, bigint> = {
-  POLYGON: 200_000n,
+  POLYGON:  80_000n,
   BSC:      50_000n,
   ETH:       5_000n,
 };
 
-// Max blocks to scan per 30-sec cycle (keeps each getLogs call reasonable)
+// Max blocks to scan per 30-sec cycle
+// Larger chunks = faster historical catch-up; publicnode supports up to ~50k per getLogs call
 const MAX_BLOCKS_PER_CYCLE: Record<string, bigint> = {
-  POLYGON: 2_000n,
+  POLYGON: 5_000n,
   BSC:     2_000n,
   ETH:     1_000n,
 };
@@ -197,12 +198,18 @@ async function scanERC20Transfers(
     const iface = new ethers.Interface(ERC20_ABI);
     const transferTopic = ethers.id("Transfer(address,address,uint256)");
 
-    // Get all Transfer events where the 'to' address is one of our deposit addresses
+    // Pad deposit addresses to 32-byte topic values for indexed "to" filtering.
+    // This filters at the node level so we only receive transfers TO our wallets —
+    // avoiding downloading millions of unrelated Transfer events.
+    const paddedAddresses = depositAddresses.map(
+      (d) => "0x" + d.address.slice(2).toLowerCase().padStart(64, "0"),
+    );
+
     const logs = await provider.getLogs({
       fromBlock: `0x${fromBlock.toString(16)}`,
       toBlock: `0x${toBlock.toString(16)}`,
       address: contractAddress,
-      topics: [transferTopic],
+      topics: [transferTopic, null, paddedAddresses],
     });
 
     for (const log of logs) {

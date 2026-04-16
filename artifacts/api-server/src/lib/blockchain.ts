@@ -4,24 +4,20 @@ import { ethers } from "ethers";
 // BSC: avoid ankr as primary — it rate-limits eth_getLogs in batch mode
 const RPC_URLS: Record<string, string[]> = {
   ETH: [
-    "https://rpc.ankr.com/eth",
+    "https://ethereum.publicnode.com",
     "https://eth.llamarpc.com",
     "https://cloudflare-eth.com",
-    "https://ethereum.publicnode.com",
+    "https://rpc.ankr.com/eth",
   ],
   BSC: [
     "https://bsc-dataseed.binance.org",
     "https://bsc-dataseed1.defibit.io",
     "https://bsc.publicnode.com",
     "https://bsc-dataseed2.binance.org",
-    "https://rpc.ankr.com/bsc",
   ],
   POLYGON: [
-    "https://polygon-mainnet.public.blastapi.io",
-    "https://polygon.llamarpc.com",
-    "https://polygon-rpc.com",
-    "https://rpc.ankr.com/polygon",
     "https://polygon.publicnode.com",
+    "https://1rpc.io/matic",
   ],
 };
 
