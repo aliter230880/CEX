@@ -23,7 +23,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const NavLinks = () => (
     <>
-      <Link href="/" className="flex items-center gap-2 px-4 py-2 hover:bg-accent rounded-md transition-colors">
+      <Link href="/markets" className="flex items-center gap-2 px-4 py-2 hover:bg-accent rounded-md transition-colors">
         <TrendingUp className="w-4 h-4" /> Markets
       </Link>
       {user ? (

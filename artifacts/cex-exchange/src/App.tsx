@@ -8,6 +8,7 @@ import { Layout } from "@/components/layout";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
+import Landing from "@/pages/landing";
 import Home from "@/pages/home";
 import Trade from "@/pages/trade";
 import Wallet from "@/pages/wallet";
@@ -49,8 +50,11 @@ function Router() {
         </AdminProtectedRoute>
       </Route>
 
+      {/* Landing page */}
+      <Route path="/" component={Landing} />
+
       {/* Public / user routes */}
-      <Route path="/">
+      <Route path="/markets">
         <Layout>
           <Home />
         </Layout>
