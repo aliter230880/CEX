@@ -21,13 +21,16 @@ import { logger } from "./logger";
 import { getRequiredConfirmations } from "./blockchain";
 
 const ETHERSCAN_BASE = "https://api.etherscan.io/v2/api";
-const BSCSCAN_BASE   = "https://api.bscscan.com/api";
 
-// Networks + their Etherscan V2 chain IDs (ETHERSCAN_API_KEY covers both)
+// Networks + their Etherscan V2 chain IDs (ETHERSCAN_API_KEY covers ETH + POLYGON free)
 const ETHERSCAN_CHAIN_IDS: Record<string, number> = {
   ETH:     1,
   POLYGON: 137,
 };
+
+// BSC via Etherscan V2 with chainid=56 — requires a key registered on bscscan.com
+// (BscScan migrated to Etherscan V2: "Access 50+ EVM chains with a single API key")
+const BSC_CHAIN_ID = 56;
 
 // Native asset symbol per network (all networks including BSC)
 const NATIVE_ASSET: Record<string, string> = {
@@ -74,7 +77,8 @@ async function etherscanFetch(chainId: number, params: Record<string, string>): 
 async function bscscanFetch(params: Record<string, string>): Promise<unknown[]> {
   const apiKey = process.env.BSCSCAN_API_KEY;
   if (!apiKey) throw new Error("BSCSCAN_API_KEY not set");
-  return explorerFetch(BSCSCAN_BASE, apiKey, params);
+  // BscScan migrated to Etherscan V2 — use same endpoint with chainid=56
+  return explorerFetch(ETHERSCAN_BASE, apiKey, params, BSC_CHAIN_ID);
 }
 
 interface EtherscanTokenTx {
