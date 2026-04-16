@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock, TrendingUp, Coins, Percent, Gift, ArrowDownCircle, AlertTriangle } from "lucide-react";
+import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock, TrendingUp, Coins, Percent, Gift, ArrowDownCircle, AlertTriangle, RefreshCw } from "lucide-react";
 
 type Stats = {
   totalUsers: number;
@@ -33,11 +33,22 @@ export default function AdminDashboard() {
   const { logout } = useAdminAuth();
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetDone, setResetDone] = useState(false);
+  const [rescanDone, setRescanDone] = useState(false);
 
   const { data: stats, isLoading } = useQuery<Stats>({
     queryKey: ["admin-stats"],
     queryFn: () => apiFetch("/api/admin/stats"),
     refetchInterval: 30000,
+  });
+
+  const rescanMutation = useMutation({
+    mutationFn: () => fetch("/api/admin/force-rescan", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    }).then(r => r.json()),
+    onSuccess: () => setRescanDone(true),
   });
 
   const resetMutation = useMutation({
@@ -192,6 +203,37 @@ export default function AdminDashboard() {
               </Link>
             ))}
           </div>
+
+          {/* Maintenance */}
+          <Card className="border-blue-500/30 bg-blue-500/5 mb-6">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-blue-400 text-base">
+                <RefreshCw className="w-4 h-4" /> Deposit Scanner Maintenance
+              </CardTitle>
+              <CardDescription>Force a historical blockchain re-scan to credit missed deposits (ERC-20 tokens, custom tokens). Scanner will look back up to 4 days on Polygon, 1.7 days on BSC, 17 hours on ETH.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rescanDone && (
+                <div className="text-blue-400 text-sm bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2 mb-3">
+                  Re-scan triggered. The scanner will process historical blocks over the next 20–30 minutes and credit any missed deposits automatically.
+                </div>
+              )}
+              <div className="flex items-center justify-between p-3 border border-blue-500/20 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium">Force Rescan All Networks</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Resets scan head for ETH, BSC, Polygon — picks up any transfers missed since last server restart.</p>
+                </div>
+                <Button size="sm" variant="outline" className="border-blue-500/40 text-blue-400 hover:bg-blue-500/10 ml-4 flex-shrink-0"
+                  onClick={() => rescanMutation.mutate()} disabled={rescanMutation.isPending}>
+                  {rescanMutation.isPending ? (
+                    <><RefreshCw className="w-3 h-3 mr-1 animate-spin" /> Resetting...</>
+                  ) : (
+                    <><RefreshCw className="w-3 h-3 mr-1" /> Force Rescan</>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Danger Zone */}
           <Card className="border-red-500/30 bg-red-500/5">

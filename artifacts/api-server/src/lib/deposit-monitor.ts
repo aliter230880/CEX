@@ -18,6 +18,28 @@ const ERC20_ABI = [
 // Track last scanned block per network
 const lastScannedBlock: Record<string, bigint> = {};
 
+// How far back to scan on FIRST start per network (blocks)
+// Polygon ~2 sec/block → 200 000 blocks ≈ 4.6 days
+// BSC     ~3 sec/block →  50 000 blocks ≈ 1.7 days
+// ETH    ~12 sec/block →   5 000 blocks ≈ 0.7 days
+const STARTUP_LOOKBACK: Record<string, bigint> = {
+  POLYGON: 200_000n,
+  BSC:      50_000n,
+  ETH:       5_000n,
+};
+
+// Max blocks to scan per 30-sec cycle (keeps each getLogs call reasonable)
+const MAX_BLOCKS_PER_CYCLE: Record<string, bigint> = {
+  POLYGON: 2_000n,
+  BSC:     2_000n,
+  ETH:     1_000n,
+};
+
+// Public API: reset scan head so admin can force a historical re-scan
+export function resetScanBlock(network: string, blockNumber: bigint) {
+  lastScannedBlock[network] = blockNumber;
+}
+
 async function scanNetwork(network: string) {
   let provider = getProvider(network);
   let currentBlock: bigint;
@@ -34,14 +56,17 @@ async function scanNetwork(network: string) {
   const safeBlock = currentBlock > 10n ? currentBlock - 10n : currentBlock;
 
   if (!lastScannedBlock[network]) {
-    lastScannedBlock[network] = safeBlock - 10n;
+    const lookback = STARTUP_LOOKBACK[network] ?? 10n;
+    lastScannedBlock[network] = safeBlock > lookback ? safeBlock - lookback : 0n;
+    logger.info({ network, fromBlock: lastScannedBlock[network].toString(), currentBlock: safeBlock.toString() }, "Deposit monitor starting — scanning historical blocks");
   }
 
   const fromBlock = lastScannedBlock[network] + 1n;
   if (fromBlock > safeBlock) return;
 
-  // Limit scan range to avoid RPC errors (max 50 blocks per cycle)
-  const toBlock = safeBlock > fromBlock + 50n ? fromBlock + 50n : safeBlock;
+  // Limit scan range per cycle to keep each getLogs call within RPC limits
+  const maxChunk = MAX_BLOCKS_PER_CYCLE[network] ?? 500n;
+  const toBlock = safeBlock > fromBlock + maxChunk ? fromBlock + maxChunk : safeBlock;
 
   // Get all deposit addresses (we'll filter by matching)
   const depositAddresses = await db.select().from(depositAddressesTable);

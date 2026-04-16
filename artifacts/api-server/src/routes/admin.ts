@@ -30,6 +30,7 @@ import {
 } from "../lib/blockchain";
 import { logger } from "../lib/logger";
 import { generateKlines } from "../lib/market-data";
+import { resetScanBlock } from "../lib/deposit-monitor";
 
 const router = Router();
 
@@ -805,6 +806,36 @@ router.get("/admin/transactions", adminGuard, async (req: Request, res: Response
     transactions: txs,
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
+});
+
+// POST /api/admin/force-rescan
+// Reset deposit scanner to N blocks in the past so it re-processes historical deposits
+router.post("/admin/force-rescan", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const { network, lookbackBlocks } = req.body as { network?: string; lookbackBlocks?: number };
+  const networks = network ? [network.toUpperCase()] : ["ETH", "BSC", "POLYGON"];
+  const validNetworks = ["ETH", "BSC", "POLYGON"];
+
+  const defaultLookback: Record<string, bigint> = {
+    POLYGON: 200_000n,
+    BSC:      50_000n,
+    ETH:       5_000n,
+  };
+
+  const results: Record<string, string> = {};
+  for (const net of networks) {
+    if (!validNetworks.includes(net)) {
+      res.status(400).json({ error: "invalid_network", message: `Unknown network: ${net}` });
+      return;
+    }
+    const lb = lookbackBlocks ? BigInt(lookbackBlocks) : defaultLookback[net] ?? 10_000n;
+    // Setting to 0n forces scanNetwork to re-initialise with the lookback on next cycle
+    resetScanBlock(net, 0n);
+    results[net] = `Reset — will scan back ${lb.toString()} blocks on next cycle`;
+  }
+
+  await audit("force_rescan", null, { networks, lookbackBlocks: lookbackBlocks ?? "default" });
+  logger.warn({ networks, lookbackBlocks }, "Admin triggered force deposit rescan");
+  res.json({ success: true, results });
 });
 
 // POST /api/admin/reset-test-balances — zero out all user balances (one-time cleanup)
