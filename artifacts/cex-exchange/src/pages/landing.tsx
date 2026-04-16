@@ -247,7 +247,7 @@ export default function Landing() {
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(5,9,18,0.75)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
         <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-            <img src="/logo.png" alt="ATEX" style={{ width: 34, height: 34, objectFit: "contain", filter: "drop-shadow(0 0 10px rgba(0,255,136,.5))" }} />
+            <img src="/logo.png" alt="ATEX" style={{ width: 42, height: 42, objectFit: "contain", filter: "drop-shadow(0 0 12px rgba(0,180,255,.55))" }} />
             <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.5, background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,.5))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ATEX</span>
             <span style={{ fontSize: 11, color: "rgba(255,255,255,.3)", fontWeight: 400 }}>exchange</span>
           </Link>
