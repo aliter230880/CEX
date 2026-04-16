@@ -66,6 +66,16 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "=== установка ADMIN_PASSWORD ==="
+            HASH='$2b$12$KaZD8ignMUIPJ7pXoJ9Vp.nq9GXv8S9ybJ07TQV4rlBIobgLS3U8O'
+            if grep -q "^ADMIN_PASSWORD=" .env 2>/dev/null; then
+              sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$HASH|" .env
+              echo "ADMIN_PASSWORD обновлён"
+            else
+              echo "ADMIN_PASSWORD=$HASH" >> .env
+              echo "ADMIN_PASSWORD добавлен"
+            fi
+
             echo "=== миграция БД ==="
             export $(grep -v '^#' .env | xargs -d '\n')
             pnpm --filter @workspace/db run push
