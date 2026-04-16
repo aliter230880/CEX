@@ -15,7 +15,6 @@
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
-    "dotenv": "^17.4.2",
     "drizzle-orm": "catalog:",
     "ethers": "^6.16.0",
     "express": "^5",

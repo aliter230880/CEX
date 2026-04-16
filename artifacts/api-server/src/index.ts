@@ -1,4 +1,28 @@
-import "dotenv/config";
+// Load missing env vars from .env file (without any external package)
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+(function loadDotEnv() {
+  const envPath = resolve(process.cwd(), ".env");
+  if (!existsSync(envPath)) return;
+  try {
+    const lines = readFileSync(envPath, "utf8").split("\n");
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq < 1) continue;
+      const key = line.slice(0, eq).trim();
+      if (!key || process.env[key] !== undefined) continue; // never override existing
+      let val = line.slice(eq + 1).trim();
+      if ((val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))) {
+        val = val.slice(1, -1);
+      }
+      process.env[key] = val;
+    }
+  } catch { /* ignore */ }
+})();
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { seedData } from "./lib/seed";
