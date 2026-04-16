@@ -81,24 +81,24 @@ function FloatingGlassTokens() {
   return (
     <>
       {/* BTC — left, upper */}
-      <div style={{ position: "absolute", left: "2%", top: "14%", pointerEvents: "none", zIndex: 3 }}>
-        <BTCGlass size={170} delay={0}/>
+      <div style={{ position: "absolute", left: "-1%", top: "10%", pointerEvents: "none", zIndex: 3 }}>
+        <BTCGlass size={230} delay={0}/>
       </div>
       {/* ETH — right, upper */}
-      <div style={{ position: "absolute", right: "3%", top: "8%", pointerEvents: "none", zIndex: 3 }}>
-        <ETHGlass size={160} delay={1.5}/>
+      <div style={{ position: "absolute", right: "-1%", top: "5%", pointerEvents: "none", zIndex: 3 }}>
+        <ETHGlass size={220} delay={1.5}/>
       </div>
-      {/* BNB — right, lower-mid */}
-      <div style={{ position: "absolute", right: "4%", top: "52%", pointerEvents: "none", zIndex: 3 }}>
-        <BNBGlass size={155} delay={0.8}/>
+      {/* BNB — right, mid */}
+      <div style={{ position: "absolute", right: "-2%", top: "48%", pointerEvents: "none", zIndex: 3 }}>
+        <BNBGlass size={210} delay={0.8}/>
       </div>
-      {/* SOL — left, lower-mid */}
-      <div style={{ position: "absolute", left: "1%", top: "58%", pointerEvents: "none", zIndex: 3 }}>
-        <SOLGlass size={165} delay={2.2}/>
+      {/* SOL — left, mid-lower */}
+      <div style={{ position: "absolute", left: "-1%", top: "54%", pointerEvents: "none", zIndex: 3 }}>
+        <SOLGlass size={220} delay={2.2}/>
       </div>
       {/* POL — center-right, bottom */}
-      <div style={{ position: "absolute", left: "62%", top: "78%", pointerEvents: "none", zIndex: 3 }}>
-        <POLGlass size={148} delay={0.4}/>
+      <div style={{ position: "absolute", left: "60%", top: "76%", pointerEvents: "none", zIndex: 3 }}>
+        <POLGlass size={200} delay={0.4}/>
       </div>
     </>
   );
