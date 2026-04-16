@@ -1,243 +1,452 @@
+import { useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useGetTradingPairs, useGetTicker, getGetTickerQueryKey } from "@workspace/api-client-react";
-import { ArrowRight, Shield, Zap, Globe, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useFlashOnChange } from "@/hooks/use-flash-on-change";
 
+/* ── Token SVG icons (inline, no external deps) ──────────────────── */
+const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
+  BTC: {
+    glow: "#F7931A",
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-btc" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFB347"/><stop offset="100%" stop-color="#F7931A"/></linearGradient></defs><path d="M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z" fill="url(#l-btc)"/></svg>`,
+  },
+  ETH: {
+    glow: "#627EEA",
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-eth" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#9ab4f7"/><stop offset="100%" stop-color="#627EEA"/></linearGradient></defs><path d="M16 5l-6.5 11.5L16 20l6.5-3.5L16 5z" fill="url(#l-eth)" opacity="0.95"/><path d="M9.5 16.5L16 20l6.5-3.5-6.5 10.5-6.5-10.5z" fill="url(#l-eth)" opacity="0.7"/></svg>`,
+  },
+  BNB: {
+    glow: "#F0B90B",
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-bnb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffe066"/><stop offset="100%" stop-color="#F0B90B"/></linearGradient></defs><path d="M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z" fill="url(#l-bnb)"/><rect x="14" y="14" width="4" height="4" rx="1" fill="url(#l-bnb)" transform="rotate(45 16 16)"/></svg>`,
+  },
+  SOL: {
+    glow: "#9945FF",
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs><path d="M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z" fill="url(#l-sol)"/></svg>`,
+  },
+  POL: {
+    glow: "#8247E5",
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-pol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#8247E5"/></linearGradient></defs><path d="M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z" fill="url(#l-pol)"/></svg>`,
+  },
+};
+
+/* ── Particle canvas (decorative) ──────────────────────────────────── */
+function ParticleCanvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener("resize", resize);
+    const particles = Array.from({ length: 55 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      r: Math.random() * 1.5 + 0.4,
+      alpha: Math.random() * 0.4 + 0.1,
+      color: ["#00ff88", "#00e5ff", "#a855f7"][Math.floor(Math.random() * 3)],
+    }));
+    let raf: number;
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const p of particles) {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = canvas.width; if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height; if (p.y > canvas.height) p.y = 0;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = p.color; ctx.globalAlpha = p.alpha; ctx.fill(); ctx.globalAlpha = 1;
+      }
+      for (let i = 0; i < particles.length; i++) for (let j = i + 1; j < particles.length; j++) {
+        const dx = particles[i].x - particles[j].x, dy = particles[i].y - particles[j].y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        if (d < 80) {
+          ctx.beginPath(); ctx.moveTo(particles[i].x, particles[i].y); ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = "#00ff88"; ctx.globalAlpha = (1 - d / 80) * 0.06; ctx.lineWidth = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
+        }
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    draw();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
+  }, []);
+  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />;
+}
+
+/* ── Floating 3D token card (decorative) ───────────────────────────── */
+const FLOAT_TOKENS = [
+  { id: "btc", sym: "BTC", w: 130, x: "3%",  y: "16%", delay: 0,   dur: 10, rx: 12,  ry: -18, rz: -6 },
+  { id: "eth", sym: "ETH", w: 120, x: "83%", y: "10%", delay: 1.5, dur: 12, rx: -10, ry: 20,  rz: 8  },
+  { id: "bnb", sym: "BNB", w: 110, x: "80%", y: "55%", delay: 0.8, dur: 9,  rx: 8,   ry: -22, rz: -4 },
+  { id: "sol", sym: "SOL", w: 118, x: "1%",  y: "60%", delay: 2.2, dur: 14, rx: -14, ry: 16,  rz: 10 },
+  { id: "pol", sym: "POL", w: 100, x: "61%", y: "80%", delay: 0.4, dur: 11, rx: 10,  ry: -14, rz: 5  },
+];
+
+function FloatCard({ t }: { t: typeof FLOAT_TOKENS[0] }) {
+  const info = TOKEN_SVGS[t.sym];
+  if (!info) return null;
+  const h = Math.round(t.w * 1.14);
+  return (
+    <div style={{ position: "absolute", left: t.x, top: t.y, width: t.w, zIndex: 3, perspective: 600, pointerEvents: "none" }}>
+      <style>{`
+        @keyframes bob-${t.id} { 0%,100%{transform:translateY(0)} 35%{transform:translateY(-18px)} 70%{transform:translateY(-8px)} }
+        @keyframes tilt-${t.id} {
+          0%  {transform:rotateX(${t.rx}deg) rotateY(${t.ry}deg) rotateZ(${t.rz}deg)}
+          25% {transform:rotateX(${t.rx-4}deg) rotateY(${t.ry+8}deg) rotateZ(${t.rz+2}deg)}
+          50% {transform:rotateX(${t.rx+6}deg) rotateY(${t.ry-6}deg) rotateZ(${t.rz-3}deg)}
+          75% {transform:rotateX(${t.rx-2}deg) rotateY(${t.ry+10}deg) rotateZ(${t.rz+4}deg)}
+          100%{transform:rotateX(${t.rx}deg) rotateY(${t.ry}deg) rotateZ(${t.rz}deg)}
+        }
+      `}</style>
+      <div style={{ animation: `bob-${t.id} ${t.dur}s ease-in-out infinite`, animationDelay: `${t.delay}s` }}>
+        <div style={{ width: "100%", height: h, transformStyle: "preserve-3d", animation: `tilt-${t.id} ${t.dur * 1.4}s ease-in-out infinite`, animationDelay: `${t.delay * 0.5}s` }}>
+          <div style={{
+            position: "absolute", inset: 0, borderRadius: 20,
+            background: "rgba(255,255,255,0.025)",
+            backdropFilter: "blur(24px)",
+            border: `1px solid rgba(255,255,255,0.1)`,
+            boxShadow: `0 28px 56px rgba(0,0,0,0.55), 0 0 32px ${info.glow}16, inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.25)`,
+            display: "flex", flexDirection: "column", padding: "12px 12px 10px",
+            overflow: "hidden",
+          }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase" }}>{t.sym}</div>
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+              <div style={{ position: "absolute", width: 68, height: 68, borderRadius: "50%", border: `1.5px solid ${info.glow}55`, boxShadow: `0 0 18px ${info.glow}45, 0 0 36px ${info.glow}18` }} />
+              <div style={{ position: "absolute", width: 52, height: 52, borderRadius: "50%", border: `1px solid ${info.glow}30` }} />
+              <div dangerouslySetInnerHTML={{ __html: info.svg }} style={{ width: 40, height: 40, filter: `drop-shadow(0 0 8px ${info.glow}dd)` }} />
+            </div>
+            <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%", borderRadius: "0 0 50% 50%", background: "linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 100%)", pointerEvents: "none" }} />
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "35%", borderRadius: "0 0 20px 20px", background: `linear-gradient(0deg,${info.glow}10 0%,transparent 100%)`, pointerEvents: "none" }} />
+          </div>
+        </div>
+        <div style={{ position: "absolute", bottom: -16, left: "20%", right: "20%", height: 16, background: `radial-gradient(ellipse,${info.glow}22 0%,transparent 80%)`, filter: "blur(6px)" }} />
+      </div>
+    </div>
+  );
+}
+
+/* ── Live pair ticker pill (uses real API data) ─────────────────────── */
 function PairTicker({ symbol }: { symbol: string }) {
   const apiPair = symbol.replace("/", "-");
   const { data } = useGetTicker(apiPair, { query: { queryKey: getGetTickerQueryKey(apiPair) } });
   const flash = useFlashOnChange(data?.lastPrice);
   if (!data) return null;
   const change = parseFloat(data.priceChangePercent ?? "0");
-  const price = parseFloat(data.lastPrice ?? "0");
+  const price  = parseFloat(data.lastPrice ?? "0");
+  const baseSymbol = symbol.split("/")[0];
+  const info = TOKEN_SVGS[baseSymbol];
   return (
-    <div className={`flex items-center gap-3 px-6 py-3 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm min-w-[160px] ${
-      flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""
-    }`}>
-      <span className="text-sm font-semibold text-white/80">{symbol}</span>
-      <div className="text-right">
-        <div className="text-sm font-bold text-white">
-          ${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </div>
-        <div className={`text-xs flex items-center gap-0.5 ${change >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-          {change >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {change >= 0 ? "+" : ""}{change.toFixed(2)}%
-        </div>
-      </div>
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 16px",
+      borderRadius: 50, background: "rgba(255,255,255,0.03)",
+      border: `1px solid ${info?.glow ?? "#fff"}22`,
+      backdropFilter: "blur(16px)",
+      boxShadow: `0 4px 20px rgba(0,0,0,0.3), 0 0 16px ${info?.glow ?? "#00ff88"}10`,
+      transition: "all 0.3s",
+    }}
+      className={flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""}
+    >
+      {info && (
+        <div dangerouslySetInnerHTML={{ __html: info.svg }}
+          style={{ width: 20, height: 20, flexShrink: 0, filter: `drop-shadow(0 0 4px ${info.glow}88)` }} />
+      )}
+      <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.55)" }}>{symbol}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "monospace", color: "#fff" }}>
+        ${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      </span>
+      <span style={{ fontSize: 11, fontWeight: 700, color: change >= 0 ? "#00ff88" : "#f87171", display: "flex", alignItems: "center", gap: 2 }}>
+        {change >= 0 ? <TrendingUp style={{ width: 10, height: 10 }} /> : <TrendingDown style={{ width: 10, height: 10 }} />}
+        {change >= 0 ? "+" : ""}{change.toFixed(2)}%
+      </span>
     </div>
   );
 }
 
+/* ── Mini chart bars (decorative) ─────────────────────────────────── */
+function MiniChart() {
+  const vals = [45, 62, 38, 71, 55, 80, 48, 92, 67, 85, 58, 76, 42, 88, 63, 74, 51, 95];
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 56 }}>
+      {vals.map((h, i) => (
+        <div key={i} style={{
+          flex: 1, height: `${h}%`, borderRadius: "2px 2px 0 0",
+          background: i > 14 ? "linear-gradient(180deg,#00ff88,#00c866)" : i > 10 ? "rgba(0,255,136,0.3)" : "rgba(255,255,255,0.06)",
+          boxShadow: i > 14 ? "0 0 6px rgba(0,255,136,0.5)" : "none",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+/* ── Main landing component ────────────────────────────────────────── */
 export default function Landing() {
   const { data: pairs } = useGetTradingPairs();
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-[#060b1a] text-white overflow-x-hidden">
+    <div style={{ minHeight: "100vh", background: "#050912", color: "#fff", overflowX: "hidden", fontFamily: "system-ui,-apple-system,sans-serif" }}>
+      <style>{`
+        @keyframes shimmerText { 0%{background-position:-200% center} 100%{background-position:200% center} }
+        @keyframes glowPulse   { 0%,100%{opacity:.5} 50%{opacity:1} }
+        @keyframes borderGlow  { 0%,100%{border-color:rgba(0,255,136,.2);box-shadow:0 0 16px rgba(0,255,136,.08)} 50%{border-color:rgba(0,229,255,.3);box-shadow:0 0 24px rgba(0,229,255,.12)} }
+        @keyframes dashFloat   { 0%,100%{transform:translateY(0) rotate(0deg)} 33%{transform:translateY(-12px) rotate(.4deg)} 66%{transform:translateY(-5px) rotate(-.4deg)} }
+        @keyframes liqBlob1    { 0%,100%{border-radius:60% 40% 55% 45%/45% 55% 40% 60%;transform:translate(0,0) scale(1)} 25%{border-radius:45% 55% 40% 60%/55% 45% 60% 40%;transform:translate(25px,-18px) scale(1.04)} 50%{border-radius:55% 45% 60% 40%/40% 60% 45% 55%;transform:translate(-12px,22px) scale(.96)} 75%{border-radius:40% 60% 45% 55%/60% 40% 55% 45%;transform:translate(18px,8px) scale(1.02)} }
+        @keyframes liqBlob2    { 0%,100%{border-radius:45% 55% 65% 35%/35% 65% 45% 55%;transform:translate(0,0) rotate(0deg)} 33%{border-radius:65% 35% 45% 55%/55% 45% 65% 35%;transform:translate(-22px,18px) rotate(8deg)} 66%{border-radius:35% 65% 55% 45%/45% 55% 35% 65%;transform:translate(18px,-12px) rotate(-6deg)} }
+        @keyframes liqBlob3    { 0%,100%{border-radius:70% 30% 50% 50%/50% 50% 70% 30%;transform:scale(1) translate(0,0)} 40%{border-radius:30% 70% 60% 40%/40% 60% 30% 70%;transform:scale(1.05) translate(12px,-18px)} 80%{border-radius:50% 50% 30% 70%/70% 30% 50% 50%;transform:scale(.94) translate(-8px,12px)} }
+        @keyframes orbDrift    { 0%,100%{transform:translate(0,0) scale(1)} 25%{transform:translate(35px,-25px) scale(1.05)} 50%{transform:translate(-18px,22px) scale(.95)} 75%{transform:translate(28px,35px) scale(1.03)} }
+        @keyframes scanLine    { 0%{transform:translateY(-100vh)} 100%{transform:translateY(200vh)} }
+        @keyframes pulseRing   { 0%,100%{opacity:.45;transform:scale(1)} 50%{opacity:.9;transform:scale(1.07)} }
+        .atex-btn-primary { background: linear-gradient(135deg,#00ff88,#00c866); color: #050912; border: none; font-weight: 800; transition: all .3s; position: relative; overflow: hidden; }
+        .atex-btn-primary::before { content:''; position:absolute; top:-50%; left:-120%; width:280%; height:200%; background:linear-gradient(120deg,transparent 0%,rgba(255,255,255,.18) 50%,transparent 100%); transition:left .5s; }
+        .atex-btn-primary:hover::before { left:120%; }
+        .atex-btn-primary:hover { transform:translateY(-2px); box-shadow:0 0 36px rgba(0,255,136,.45) !important; color:#050912; }
+        .atex-btn-ghost { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1); color:rgba(255,255,255,.7); transition:all .3s; }
+        .atex-btn-ghost:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.2); color:#fff; }
+        .atex-card { background:rgba(255,255,255,.025); border:1px solid rgba(255,255,255,.07); backdrop-filter:blur(20px); box-shadow:inset 0 1px 0 rgba(255,255,255,.04); transition:all .4s cubic-bezier(.4,0,.2,1); }
+        .atex-card:hover { background:rgba(255,255,255,.05); transform:translateY(-5px); }
+      `}</style>
 
-      {/* ── Animated background orbs ── */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="orb orb-1" />
-        <div className="orb orb-2" />
-        <div className="orb orb-3" />
-        {/* Grid overlay */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLW9wYWNpdHk9IjAuMDMiPjxwYXRoIGQ9Ik02MCAwSDAgTTYwIDYwSDBNMCA2MFYwTTYwIDYwVjAiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-60" />
+      <ParticleCanvas />
+
+      {/* ── Liquid blobs ── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", overflow: "hidden" }}>
+        <svg width="0" height="0" style={{ position: "absolute" }}>
+          <defs>
+            <filter id="atex-goo">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur" />
+              <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -8" result="goo" />
+              <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+            </filter>
+          </defs>
+        </svg>
+        <div style={{ position: "absolute", top: "5%", left: "8%", filter: "url(#atex-goo)" }}>
+          <div style={{ width: 300, height: 300, borderRadius: "50%", background: "rgba(0,255,136,0.06)", animation: "liqBlob1 14s ease-in-out infinite" }} />
+          <div style={{ width: 200, height: 200, borderRadius: "50%", background: "rgba(0,255,136,0.04)", marginTop: -160, marginLeft: 55, animation: "liqBlob2 11s ease-in-out infinite 2s" }} />
+        </div>
+        <div style={{ position: "absolute", top: "40%", right: "4%", filter: "url(#atex-goo)" }}>
+          <div style={{ width: 240, height: 240, borderRadius: "50%", background: "rgba(0,229,255,0.05)", animation: "liqBlob3 13s ease-in-out infinite .5s" }} />
+          <div style={{ width: 160, height: 160, borderRadius: "50%", background: "rgba(0,229,255,0.04)", marginTop: -130, marginLeft: 45, animation: "liqBlob1 10s ease-in-out infinite 3s" }} />
+        </div>
+        <div style={{ position: "absolute", bottom: "8%", left: "33%", filter: "url(#atex-goo)" }}>
+          <div style={{ width: 260, height: 260, borderRadius: "50%", background: "rgba(168,85,247,0.05)", animation: "liqBlob2 15s ease-in-out infinite 1.5s" }} />
+        </div>
+        <div style={{ position: "absolute", top: "12%", left: "18%", width: 460, height: 460, borderRadius: "50%", background: "radial-gradient(circle,rgba(0,255,136,0.07) 0%,transparent 70%)", filter: "blur(50px)", animation: "orbDrift 18s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", bottom: "18%", right: "12%", width: 380, height: 380, borderRadius: "50%", background: "radial-gradient(circle,rgba(0,229,255,0.06) 0%,transparent 70%)", filter: "blur(50px)", animation: "orbDrift 14s ease-in-out infinite reverse 2s" }} />
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(0,255,136,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,136,.02) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
+        <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "linear-gradient(90deg,transparent 0%,rgba(0,255,136,.1) 30%,rgba(0,255,136,.22) 50%,rgba(0,255,136,.1) 70%,transparent 100%)", animation: "scanLine 12s linear infinite" }} />
+      </div>
+
+      {/* ── Floating 3D token cards ── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 2, pointerEvents: "none" }}>
+        {FLOAT_TOKENS.map(t => <FloatCard key={t.id} t={t} />)}
       </div>
 
       {/* ── Navbar ── */}
-      <nav className="relative z-50 flex items-center justify-between px-8 py-5 border-b border-white/5 bg-[#060b1a]/80 backdrop-blur-xl sticky top-0">
-        <Link href="/" className="flex items-center gap-2.5">
-          <img src="/logo.png" alt="" className="w-8 h-8 object-contain" onError={e => (e.currentTarget.style.display = "none")} />
-          <span className="text-xl font-bold text-white tracking-tight">ATEX</span>
-          <span className="text-sm text-white/40 font-normal">exchange</span>
-        </Link>
+      <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(5,9,18,0.75)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: "linear-gradient(135deg,#00ff88,#00c866)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 900, color: "#050912", boxShadow: "0 0 18px rgba(0,255,136,.38)" }}>A</div>
+            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.5, background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,.5))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ATEX</span>
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,.3)", fontWeight: 400 }}>exchange</span>
+          </Link>
 
-        <div className="hidden md:flex items-center gap-1">
-          <Link href="/markets" className="px-4 py-2 text-sm text-white/60 hover:text-white rounded-lg hover:bg-white/5 transition-all">Markets</Link>
-          <Link href="/markets" className="px-4 py-2 text-sm text-white/60 hover:text-white rounded-lg hover:bg-white/5 transition-all">Trade</Link>
-        </div>
+          <div style={{ display: "flex", gap: 2 }}>
+            {[
+              { label: "Markets", href: "/markets" },
+              { label: "Trade",   href: "/markets" },
+            ].map(item => (
+              <Link key={item.label} href={item.href} style={{ padding: "8px 16px", borderRadius: 8, color: "rgba(255,255,255,.48)", fontSize: 14, fontWeight: 500, textDecoration: "none", transition: "all .2s" }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,.05)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,.48)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >{item.label}</Link>
+            ))}
+          </div>
 
-        <div className="flex items-center gap-3">
-          {user ? (
-            <Link href="/markets">
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white border-0 rounded-xl px-5">
-                Open Platform <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            </Link>
-          ) : (
-            <>
-              <Link href="/login">
-                <Button variant="ghost" size="sm" className="text-white/70 hover:text-white hover:bg-white/5 rounded-xl">Login</Button>
+          <div style={{ display: "flex", gap: 10 }}>
+            {user ? (
+              <Link href="/markets">
+                <Button className="atex-btn-primary rounded-xl px-5 h-9 text-sm">
+                  Open Platform <ArrowRight style={{ width: 14, height: 14, marginLeft: 4 }} />
+                </Button>
               </Link>
-              <Link href="/register">
-                <Button size="sm" className="bg-blue-600 hover:bg-blue-500 text-white border-0 rounded-xl px-5">Start Trading</Button>
-              </Link>
-            </>
-          )}
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button className="atex-btn-ghost rounded-xl px-5 h-9 text-sm">Login</Button>
+                </Link>
+                <Link href="/register">
+                  <Button className="atex-btn-primary rounded-xl px-5 h-9 text-sm" style={{ boxShadow: "0 0 22px rgba(0,255,136,.3)" }}>
+                    Start Trading
+                  </Button>
+                </Link>
+              </>
+            )}
+          </div>
         </div>
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative z-10 flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 min-h-[calc(100vh-73px)]">
+      <section style={{ position: "relative", zIndex: 5, padding: "80px 32px 60px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", minHeight: "calc(100vh - 64px)" }}>
 
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-300 text-xs font-medium mb-8 backdrop-blur-sm">
-          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse" />
-          Professional Crypto Trading Platform
+        {/* Live badge */}
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 18px", borderRadius: 50, marginBottom: 32, background: "rgba(0,255,136,0.07)", border: "1px solid rgba(0,255,136,0.2)", animation: "borderGlow 3s ease-in-out infinite" }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#00ff88", boxShadow: "0 0 8px #00ff88", animation: "glowPulse 2s ease-in-out infinite" }} />
+          <span style={{ color: "#00ff88", fontSize: 13, fontWeight: 600 }}>Professional Crypto Trading Platform</span>
         </div>
 
         {/* Headline */}
-        <h1 className="text-5xl md:text-7xl font-black leading-tight mb-6 tracking-tight">
-          <span className="text-white">Trade Crypto</span>
+        <h1 style={{ fontSize: "clamp(42px,6vw,72px)", fontWeight: 900, lineHeight: 1.07, letterSpacing: -2.5, marginBottom: 22, maxWidth: 800 }}>
+          <span style={{ background: "linear-gradient(180deg,#fff 40%,rgba(255,255,255,.55))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Trade Crypto</span>
           <br />
-          <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-cyan-400 bg-clip-text text-transparent">
+          <span style={{ background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7,#00ff88)", backgroundSize: "200% auto", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", animation: "shimmerText 4s linear infinite" }}>
             With Confidence
           </span>
         </h1>
 
-        <p className="text-white/50 text-lg md:text-xl max-w-xl mb-10 leading-relaxed">
+        <p style={{ fontSize: 18, lineHeight: 1.7, color: "rgba(255,255,255,.42)", maxWidth: 500, marginBottom: 40 }}>
           Spot trading, multi-chain wallets, and a real matching engine — built for speed and security.
         </p>
 
-        {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 mb-16">
+        {/* CTA buttons */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 56, flexWrap: "wrap", justifyContent: "center" }}>
           <Link href={user ? "/markets" : "/register"}>
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-500 text-white border-0 rounded-2xl px-8 h-12 text-base font-semibold shadow-lg shadow-blue-600/30 transition-all hover:shadow-blue-600/50 hover:scale-105">
-              Start Trading <ArrowRight className="w-4 h-4 ml-2" />
+            <Button className="atex-btn-primary rounded-2xl px-8 h-12 text-base" style={{ boxShadow: "0 0 28px rgba(0,255,136,.32),0 4px 22px rgba(0,0,0,.4)" }}>
+              Start Trading <ArrowRight style={{ width: 16, height: 16, marginLeft: 6 }} />
             </Button>
           </Link>
           <Link href="/markets">
-            <Button size="lg" variant="outline" className="rounded-2xl px-8 h-12 text-base border-white/20 text-white/70 hover:text-white hover:bg-white/5 hover:border-white/30 transition-all">
+            <Button className="atex-btn-ghost rounded-2xl px-8 h-12 text-base">
               View Markets
             </Button>
           </Link>
         </div>
 
-        {/* Live price tickers */}
+        {/* Live price tickers from API */}
         {pairs && pairs.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-3">
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10, marginBottom: 56 }}>
             {pairs.slice(0, 5).map(pair => (
               <PairTicker key={pair.symbol} symbol={pair.symbol} />
             ))}
           </div>
         )}
 
-        {/* Stats row */}
-        <div className="flex items-center gap-8 mt-14 text-center">
-          {[
-            { label: "Trading Fee", value: "0.1%" },
-            { label: "Networks", value: "3 Chains" },
-            { label: "Trading Pairs", value: "5 Pairs" },
-          ].map(stat => (
-            <div key={stat.label}>
-              <div className="text-2xl font-bold text-white">{stat.value}</div>
-              <div className="text-xs text-white/40 mt-1">{stat.label}</div>
+        {/* Floating dashboard card */}
+        <div style={{
+          width: "100%", maxWidth: 780,
+          borderRadius: 26, background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.08)",
+          backdropFilter: "blur(32px)",
+          boxShadow: "0 36px 90px rgba(0,0,0,.65),0 0 50px rgba(0,255,136,.04),inset 0 1px 0 rgba(255,255,255,.07)",
+          padding: 28, animation: "dashFloat 9s ease-in-out infinite",
+          position: "relative", overflow: "hidden",
+        }}>
+          <style>{`@keyframes dashFloat{0%,100%{transform:translateY(0) rotate(0deg)}33%{transform:translateY(-12px) rotate(.4deg)}66%{transform:translateY(-5px) rotate(-.4deg)}}`}</style>
+          <div style={{ position: "absolute", top: 0, left: "25%", right: "25%", height: 1, background: "linear-gradient(90deg,transparent,rgba(0,255,136,.4),transparent)" }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: 26, background: "radial-gradient(circle at 50% 0%,rgba(0,255,136,.04) 0%,transparent 60%)", pointerEvents: "none" }} />
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,.35)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 5 }}>BTC / USDT · Live</div>
+              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: -1.5, color: "#fff" }}>
+                {pairs?.find(p => p.symbol === "BTC/USDT") ? "" : "$83,412"}
+                <span style={{ fontSize: 18, color: "rgba(255,255,255,.35)" }}></span>
+              </div>
             </div>
-          ))}
+            <div style={{ textAlign: "right" }}>
+              <div style={{ padding: "5px 12px", borderRadius: 8, background: "rgba(0,255,136,.12)", border: "1px solid rgba(0,255,136,.22)", color: "#00ff88", fontSize: 14, fontWeight: 700, marginBottom: 6 }}>▲ LIVE</div>
+              <Link href="/markets" style={{ fontSize: 12, color: "rgba(255,255,255,.35)", textDecoration: "none" }}>Open Chart →</Link>
+            </div>
+          </div>
+          <MiniChart />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginTop: 18 }}>
+            {[
+              { label: "Trading Fee", value: "0.1%",   color: "#00e5ff" },
+              { label: "Networks",    value: "3 Chains", color: "#00ff88" },
+              { label: "Pairs",       value: "5+",      color: "#a855f7" },
+            ].map(s => (
+              <div key={s.label} style={{ padding: "10px 12px", borderRadius: 12, background: "rgba(255,255,255,.025)", border: "1px solid rgba(255,255,255,.06)" }}>
+                <div style={{ fontSize: 10, color: "rgba(255,255,255,.3)", textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>{s.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.value}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── Features ── */}
-      <section className="relative z-10 px-6 py-20 max-w-5xl mx-auto">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">Built for real trading</h2>
-          <p className="text-white/40 text-base">Everything you need in one platform</p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-5">
-          {[
-            {
-              icon: <Zap className="w-6 h-6 text-blue-400" />,
-              title: "Low Fees",
-              desc: "0.1% flat fee on every trade. No hidden charges, no surprises.",
-              glow: "blue",
-            },
-            {
-              icon: <Globe className="w-6 h-6 text-violet-400" />,
-              title: "Multi-Chain",
-              desc: "Deposit and withdraw on Ethereum, BNB Smart Chain and Polygon.",
-              glow: "violet",
-            },
-            {
-              icon: <Shield className="w-6 h-6 text-cyan-400" />,
-              title: "HD Wallets",
-              desc: "Every user gets a unique derived address — your keys, your assets.",
-              glow: "cyan",
-            },
-          ].map(f => (
-            <div
-              key={f.title}
-              className="relative group p-7 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm hover:bg-white/8 hover:border-white/20 transition-all duration-300"
-            >
-              <div className={`w-12 h-12 rounded-xl bg-${f.glow}-500/10 border border-${f.glow}-500/20 flex items-center justify-center mb-5`}>
-                {f.icon}
+      <section style={{ position: "relative", zIndex: 5, padding: "20px 32px 80px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
+            <h2 style={{ fontSize: 40, fontWeight: 900, letterSpacing: -1.5, marginBottom: 10, background: "linear-gradient(180deg,#fff 50%,rgba(255,255,255,.45))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Built for real trading
+            </h2>
+            <p style={{ color: "rgba(255,255,255,.3)", fontSize: 16 }}>Everything you need in one platform</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+            {[
+              { icon: "⚡", title: "Low Fees",    desc: "0.1% flat fee on every trade. No hidden charges, no surprises.",                            glow: "#00ff88" },
+              { icon: "🌐", title: "Multi-Chain", desc: "Deposit and withdraw on Ethereum, BNB Smart Chain and Polygon.",                              glow: "#00e5ff" },
+              { icon: "🔐", title: "HD Wallets",  desc: "Every user gets a unique derived address — your keys, your assets.",                         glow: "#a855f7" },
+            ].map(f => (
+              <div key={f.title} className="atex-card" style={{ padding: "26px 22px", borderRadius: 20 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = f.glow + "44"; (e.currentTarget as HTMLElement).style.boxShadow = `0 0 28px ${f.glow}18,inset 0 1px 0 rgba(255,255,255,.1)`; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,.07)"; (e.currentTarget as HTMLElement).style.boxShadow = "inset 0 1px 0 rgba(255,255,255,.04)"; }}
+              >
+                <div style={{ width: 46, height: 46, borderRadius: 13, marginBottom: 16, fontSize: 20, display: "flex", alignItems: "center", justifyContent: "center", background: `linear-gradient(135deg,${f.glow}22,${f.glow}08)`, border: `1px solid ${f.glow}30`, boxShadow: `0 0 18px ${f.glow}18` }}>{f.icon}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{f.title}</div>
+                <div style={{ fontSize: 13, color: "rgba(255,255,255,.38)", lineHeight: 1.6 }}>{f.desc}</div>
               </div>
-              <h3 className="text-lg font-semibold text-white mb-2">{f.title}</h3>
-              <p className="text-white/45 text-sm leading-relaxed">{f.desc}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </section>
 
       {/* ── CTA banner ── */}
-      <section className="relative z-10 px-6 py-20 text-center">
-        <div className="max-w-2xl mx-auto p-10 rounded-3xl border border-blue-500/20 bg-gradient-to-b from-blue-900/20 to-violet-900/10 backdrop-blur-sm">
-          <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Ready to start?</h2>
-          <p className="text-white/50 mb-8">Create an account and start trading in minutes.</p>
-          <Link href="/register">
-            <Button size="lg" className="bg-blue-600 hover:bg-blue-500 text-white border-0 rounded-2xl px-10 h-12 text-base font-semibold shadow-lg shadow-blue-600/30 hover:scale-105 transition-all">
-              Create Free Account <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </Link>
+      <section style={{ position: "relative", zIndex: 5, padding: "0 32px 80px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+          <div style={{
+            borderRadius: 30, padding: "60px 40px",
+            background: "linear-gradient(135deg,rgba(0,255,136,.07) 0%,rgba(0,229,255,.04) 50%,rgba(168,85,247,.07) 100%)",
+            border: "1px solid rgba(0,255,136,.14)",
+            backdropFilter: "blur(28px)",
+            textAlign: "center", position: "relative", overflow: "hidden",
+            boxShadow: "0 0 70px rgba(0,255,136,.04),inset 0 1px 0 rgba(255,255,255,.06)",
+          }}>
+            <div style={{ position: "absolute", top: -60, left: "50%", transform: "translateX(-50%)", width: 360, height: 120, background: "radial-gradient(ellipse,rgba(0,255,136,.09) 0%,transparent 70%)", filter: "blur(18px)", pointerEvents: "none" }} />
+            <h2 style={{ fontSize: 42, fontWeight: 900, letterSpacing: -1.5, marginBottom: 12, background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,.65))", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", position: "relative" }}>
+              Ready to start?
+            </h2>
+            <p style={{ color: "rgba(255,255,255,.38)", fontSize: 17, marginBottom: 36, position: "relative" }}>
+              Create an account and start trading in minutes.
+            </p>
+            <Link href="/register">
+              <Button className="atex-btn-primary rounded-2xl px-10 h-12 text-base" style={{ boxShadow: "0 0 36px rgba(0,255,136,.35),0 8px 28px rgba(0,0,0,.4)", position: "relative", fontSize: 16 }}>
+                Create Free Account <ArrowRight style={{ width: 16, height: 16, marginLeft: 6 }} />
+              </Button>
+            </Link>
+          </div>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="relative z-10 border-t border-white/5 px-8 py-6 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="" className="w-5 h-5 object-contain" onError={e => (e.currentTarget.style.display = "none")} />
-          <span className="text-sm text-white/30">ATEX exchange © 2026</span>
+      <footer style={{ position: "relative", zIndex: 5, borderTop: "1px solid rgba(255,255,255,.05)", padding: "24px 32px", background: "rgba(5,9,18,.85)", backdropFilter: "blur(20px)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 7, background: "linear-gradient(135deg,#00ff88,#00e5ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 900, color: "#050912" }}>A</div>
+          <span style={{ color: "rgba(255,255,255,.3)", fontSize: 13 }}>ATEX exchange © 2026</span>
         </div>
-        <div className="flex items-center gap-5 text-xs text-white/30">
-          <Link href="/markets" className="hover:text-white/60 transition-colors">Markets</Link>
-          <Link href="/login" className="hover:text-white/60 transition-colors">Login</Link>
-          <Link href="/register" className="hover:text-white/60 transition-colors">Register</Link>
+        <div style={{ display: "flex", gap: 20 }}>
+          {[
+            { label: "Markets",  href: "/markets"  },
+            { label: "Login",    href: "/login"    },
+            { label: "Register", href: "/register" },
+          ].map(l => (
+            <Link key={l.label} href={l.href} style={{ color: "rgba(255,255,255,.28)", fontSize: 13, textDecoration: "none", transition: "color .2s" }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,.6)"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,.28)"; }}
+            >{l.label}</Link>
+          ))}
         </div>
       </footer>
-
-      {/* ── Orb animation styles ── */}
-      <style>{`
-        .orb {
-          position: absolute;
-          border-radius: 50%;
-          filter: blur(90px);
-          animation: orbFloat 8s ease-in-out infinite;
-        }
-        .orb-1 {
-          width: 500px; height: 500px;
-          background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
-          top: 5%; left: 10%;
-          animation-delay: 0s;
-        }
-        .orb-2 {
-          width: 400px; height: 400px;
-          background: radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%);
-          top: 30%; right: 5%;
-          animation-delay: 2.5s;
-        }
-        .orb-3 {
-          width: 350px; height: 350px;
-          background: radial-gradient(circle, rgba(6,182,212,0.12) 0%, transparent 70%);
-          bottom: 10%; left: 35%;
-          animation-delay: 5s;
-        }
-        @keyframes orbFloat {
-          0%, 100% { transform: translateY(0px) scale(1); opacity: 0.8; }
-          50% { transform: translateY(-30px) scale(1.05); opacity: 1; }
-        }
-      `}</style>
     </div>
   );
 }
