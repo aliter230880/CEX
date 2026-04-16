@@ -1,4 +1,47 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
+/* ── Live prices from CoinGecko ─────────────────────────────────── */
+const CG_IDS: Record<string, string> = {
+  BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin",
+  SOL: "solana", POL: "matic-network", USDT: "tether",
+};
+
+type PriceMap = Record<string, { price: number; change: number }>;
+
+function formatPrice(p: number): string {
+  if (p >= 10000) return p.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  if (p >= 100)   return p.toLocaleString("en-US", { maximumFractionDigits: 2 });
+  if (p >= 1)     return p.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return p.toFixed(5);
+}
+
+function useLivePrices(): PriceMap {
+  const [prices, setPrices] = useState<PriceMap>({});
+
+  const load = useCallback(async () => {
+    try {
+      const ids = Object.values(CG_IDS).join(",");
+      const res = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const result: PriceMap = {};
+      for (const [sym, id] of Object.entries(CG_IDS)) {
+        if (data[id]) result[sym] = { price: data[id].usd, change: data[id].usd_24h_change ?? 0 };
+      }
+      if (Object.keys(result).length) setPrices(result);
+    } catch { /* silent — keep showing last known */ }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 30_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  return prices;
+}
 
 /* ── Token SVG icons — NO background circle, just the symbol paths ── */
 const TOKEN_ICONS: Record<string, { svg: string; color: string; glow: string }> = {
@@ -84,29 +127,46 @@ const TOKEN_ICONS: Record<string, { svg: string; color: string; glow: string }> 
   },
 };
 
-const TICKERS = [
-  { symbol: "BTC", price: "83,412.00", change: "+2.34", up: true },
-  { symbol: "ETH", price: "3,194.80", change: "+1.87", up: true },
-  { symbol: "BNB", price: "608.44", change: "-0.62", up: false },
-  { symbol: "SOL", price: "175.20", change: "+4.15", up: true },
-  { symbol: "POL", price: "0.7820", change: "-1.23", up: false },
-  { symbol: "USDT", price: "1.0000", change: "0.00", up: true },
+/* Fallback prices shown before API loads */
+const TICKER_DEFAULTS = [
+  { symbol: "BTC",  price: "83,412.00", change: "+2.34", up: true  },
+  { symbol: "ETH",  price: "3,194.80",  change: "+1.87", up: true  },
+  { symbol: "BNB",  price: "608.44",    change: "-0.62", up: false },
+  { symbol: "SOL",  price: "175.20",    change: "+4.15", up: true  },
+  { symbol: "POL",  price: "0.7820",    change: "-1.23", up: false },
+  { symbol: "USDT", price: "1.0000",    change: "0.00",  up: true  },
 ];
 
-/* ── Floating token logos ─────────────────────────────────────────── */
 /* ── 3D floating token cards ─────────────────────────────────────── */
 const FLOATING_TOKENS = [
-  { id: "btc",  symbol: "BTC",  price: "83,412", change: "+2.34%", up: true,  w: 140, h: 160, x: "4%",  y: "14%", delay: 0,    duration: 10, rx: 12,  ry: -18, rz: -6  },
-  { id: "eth",  symbol: "ETH",  price: "3,194",  change: "+1.87%", up: true,  w: 130, h: 150, x: "83%", y: "8%",  delay: 1.5,  duration: 12, rx: -10, ry: 20,  rz: 8   },
-  { id: "bnb",  symbol: "BNB",  price: "608",    change: "-0.62%", up: false, w: 120, h: 138, x: "79%", y: "52%", delay: 0.8,  duration: 9,  rx: 8,   ry: -22, rz: -4  },
-  { id: "sol",  symbol: "SOL",  price: "175.2",  change: "+4.15%", up: true,  w: 135, h: 155, x: "2%",  y: "58%", delay: 2.2,  duration: 14, rx: -14, ry: 16,  rz: 10  },
-  { id: "pol",  symbol: "POL",  price: "0.782",  change: "-1.23%", up: false, w: 112, h: 128, x: "60%", y: "78%", delay: 0.4,  duration: 11, rx: 10,  ry: -14, rz: 5   },
-  { id: "usdt", symbol: "USDT", price: "1.000",  change: "0.00%",  up: true,  w: 118, h: 136, x: "14%", y: "80%", delay: 1.8,  duration: 13, rx: -8,  ry: 18,  rz: -8  },
+  { id: "btc",  symbol: "BTC",  w: 140, h: 160, x: "4%",  y: "14%", delay: 0,   duration: 10, rx: 12,  ry: -18, rz: -6  },
+  { id: "eth",  symbol: "ETH",  w: 130, h: 150, x: "83%", y: "8%",  delay: 1.5, duration: 12, rx: -10, ry: 20,  rz: 8   },
+  { id: "bnb",  symbol: "BNB",  w: 120, h: 138, x: "79%", y: "52%", delay: 0.8, duration: 9,  rx: 8,   ry: -22, rz: -4  },
+  { id: "sol",  symbol: "SOL",  w: 135, h: 155, x: "2%",  y: "58%", delay: 2.2, duration: 14, rx: -14, ry: 16,  rz: 10  },
+  { id: "pol",  symbol: "POL",  w: 112, h: 128, x: "60%", y: "78%", delay: 0.4, duration: 11, rx: 10,  ry: -14, rz: 5   },
+  { id: "usdt", symbol: "USDT", w: 118, h: 136, x: "14%", y: "80%", delay: 1.8, duration: 13, rx: -8,  ry: 18,  rz: -8  },
 ];
 
-function Token3DCard({ token }: { token: typeof FLOATING_TOKENS[0] }) {
+/* Defaults used before live prices load */
+const PRICE_DEFAULTS: Record<string, { price: string; change: string; up: boolean }> = {
+  BTC:  { price: "83,412", change: "+2.34%", up: true  },
+  ETH:  { price: "3,194",  change: "+1.87%", up: true  },
+  BNB:  { price: "608",    change: "-0.62%", up: false },
+  SOL:  { price: "175.2",  change: "+4.15%", up: true  },
+  POL:  { price: "0.782",  change: "-1.23%", up: false },
+  USDT: { price: "1.000",  change: "0.00%",  up: true  },
+};
+
+function Token3DCard({ token, prices }: { token: typeof FLOATING_TOKENS[0]; prices: PriceMap }) {
   const info = TOKEN_ICONS[token.symbol];
   if (!info) return null;
+
+  const live = prices[token.symbol];
+  const def  = PRICE_DEFAULTS[token.symbol];
+  const priceStr  = live ? formatPrice(live.price) : def.price;
+  const changeVal = live ? live.change : parseFloat(def.change);
+  const up        = changeVal >= 0;
+  const changeStr = (up ? "+" : "") + changeVal.toFixed(2) + "%";
 
   const keyBob = `bob_${token.id}`;
   const keySpin = `spin_${token.id}`;
@@ -178,12 +238,12 @@ function Token3DCard({ token }: { token: typeof FLOATING_TOKENS[0] }) {
             </div>
             <div style={{
               fontSize: 9, fontWeight: 700, letterSpacing: 0.5,
-              color: token.up ? "#00ff88" : "#f87171",
-              background: token.up ? "rgba(0,255,136,0.12)" : "rgba(248,113,113,0.12)",
-              border: `1px solid ${token.up ? "rgba(0,255,136,0.25)" : "rgba(248,113,113,0.25)"}`,
+              color: up ? "#00ff88" : "#f87171",
+              background: up ? "rgba(0,255,136,0.12)" : "rgba(248,113,113,0.12)",
+              border: `1px solid ${up ? "rgba(0,255,136,0.25)" : "rgba(248,113,113,0.25)"}`,
               borderRadius: 6, padding: "2px 6px",
             }}>
-              {token.up ? "▲" : "▼"} {token.change}
+              {up ? "▲" : "▼"} {changeStr}
             </div>
           </div>
 
@@ -230,7 +290,7 @@ function Token3DCard({ token }: { token: typeof FLOATING_TOKENS[0] }) {
             fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,0.85)",
             letterSpacing: -0.5, fontFamily: "monospace",
           }}>
-            ${token.price}
+            ${priceStr}
           </div>
 
           {/* Glass reflection streak */}
@@ -444,14 +504,26 @@ function ParticleCanvas() {
   return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />;
 }
 
-/* ── Ticker ──────────────────────────────────────────────────────── */
-function TickerRow() {
-  const [offset, setOffset] = useState(0);
-  useEffect(() => {
-    const id = setInterval(() => setOffset(o => o - 0.45), 16);
-    return () => clearInterval(id);
-  }, []);
-  const doubled = [...TICKERS, ...TICKERS, ...TICKERS];
+/* ── Ticker — CSS seamless marquee ──────────────────────────────── */
+const TICKER_ITEM_W = 224; /* px — fixed width per pill including gap */
+
+function TickerRow({ prices }: { prices: PriceMap }) {
+  const tickers = TICKER_DEFAULTS.map(t => {
+    const live = prices[t.symbol];
+    if (!live) return t;
+    const up = live.change >= 0;
+    return {
+      symbol: t.symbol,
+      price: formatPrice(live.price),
+      change: (up ? "+" : "") + live.change.toFixed(2),
+      up,
+    };
+  });
+
+  /* Render exactly 2 copies — CSS will translateX(-50%) for seamless loop */
+  const doubled = [...tickers, ...tickers];
+  const totalW  = tickers.length * TICKER_ITEM_W; /* half = one set */
+
   return (
     <div style={{
       overflow: "hidden",
@@ -462,21 +534,36 @@ function TickerRow() {
       padding: "10px 0",
       position: "relative", zIndex: 10,
     }}>
-      <div style={{ display: "flex", gap: 12, whiteSpace: "nowrap", transform: `translateX(${offset % (TICKERS.length * 210)}px)` }}>
+      <style>{`
+        @keyframes marqueeScroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-${totalW}px); }
+        }
+      `}</style>
+      <div style={{
+        display: "flex",
+        gap: 12,
+        width: "max-content",
+        animation: `marqueeScroll ${tickers.length * 4}s linear infinite`,
+        willChange: "transform",
+      }}>
         {doubled.map((t, i) => {
           const info = TOKEN_ICONS[t.symbol];
           return (
             <div key={i} style={{
-              display: "inline-flex", alignItems: "center", gap: 8,
-              padding: "6px 16px", borderRadius: 50, minWidth: 195,
+              display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
+              width: TICKER_ITEM_W - 12, /* subtract gap */
+              padding: "6px 14px", borderRadius: 50,
               background: "rgba(255,255,255,0.03)",
               border: `1px solid ${info?.glow ?? "#fff"}18`,
               backdropFilter: "blur(12px)",
+              boxSizing: "border-box",
             }}>
-              <div dangerouslySetInnerHTML={{ __html: info?.svg ?? "" }} style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }} />
-              <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>{t.symbol}/USDT</span>
-              <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: "#fff" }}>${t.price}</span>
-              <span style={{ fontSize: 11, fontWeight: 700, color: t.up ? "#00ff88" : "#f87171" }}>
+              <div dangerouslySetInnerHTML={{ __html: info?.svg ?? "" }}
+                style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.55)", flexShrink: 0 }}>{t.symbol}</span>
+              <span style={{ fontSize: 12, fontFamily: "monospace", fontWeight: 600, color: "#fff", flex: 1, textAlign: "right" }}>${t.price}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: t.up ? "#00ff88" : "#f87171", flexShrink: 0, minWidth: 54, textAlign: "right" }}>
                 {t.up ? "▲" : "▼"} {t.change}%
               </span>
             </div>
@@ -540,6 +627,7 @@ function GlassCard({ icon, title, desc, glow }: { icon: string; title: string; d
 
 /* ── Main component ──────────────────────────────────────────────── */
 export function Landing() {
+  const prices = useLivePrices();
   return (
     <div style={{ minHeight: "100vh", background: "#050912", color: "#fff", overflowX: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <style>{`
@@ -618,7 +706,7 @@ export function Landing() {
 
       {/* Floating token logos */}
       <div style={{ position: "fixed", inset: 0, zIndex: 4, pointerEvents: "none" }}>
-        {FLOATING_TOKENS.map(t => <Token3DCard key={t.id} token={t} />)}
+        {FLOATING_TOKENS.map(t => <Token3DCard key={t.id} token={t} prices={prices} />)}
       </div>
 
       {/* ── Navbar ── */}
@@ -683,7 +771,7 @@ export function Landing() {
       </nav>
 
       {/* Ticker */}
-      <TickerRow />
+      <TickerRow prices={prices} />
 
       {/* ── Hero ── */}
       <section style={{ position: "relative", zIndex: 5, padding: "90px 40px 60px" }}>
