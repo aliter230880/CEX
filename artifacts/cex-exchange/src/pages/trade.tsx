@@ -2,14 +2,12 @@ import { useRoute } from "wouter";
 import { 
   useGetTicker, 
   useGetOrderBook, 
-  useGetKlines, 
   useGetRecentTrades, 
   useGetOrders, 
   useGetBalances,
   useCreateOrder,
   getGetTickerQueryKey,
   getGetOrderBookQueryKey,
-  getGetKlinesQueryKey,
   getGetRecentTradesQueryKey,
   getGetOrdersQueryKey,
   getGetBalancesQueryKey
@@ -25,8 +23,8 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuth } from "@/lib/auth";
+import { PriceChart } from "@/components/PriceChart";
 
 const orderSchema = z.object({
   type: z.enum(["limit", "market"]),
@@ -57,7 +55,6 @@ export default function Trade() {
 
   const { data: ticker } = useGetTicker(apiPair, { query: { queryKey: getGetTickerQueryKey(apiPair), enabled: !!apiPair, refetchInterval: 3000 } });
   const { data: orderBook } = useGetOrderBook(apiPair, { depth: 20 }, { query: { queryKey: getGetOrderBookQueryKey(apiPair, { depth: 20 }), enabled: !!apiPair, refetchInterval: 3000 } });
-  const { data: klines } = useGetKlines(apiPair, { limit: 100, interval: "1h" }, { query: { queryKey: getGetKlinesQueryKey(apiPair, { limit: 100, interval: "1h" }), enabled: !!apiPair } });
   const { data: recentTrades } = useGetRecentTrades(apiPair, { limit: 50 }, { query: { queryKey: getGetRecentTradesQueryKey(apiPair, { limit: 50 }), enabled: !!apiPair, refetchInterval: 3000 } });
   const { data: openOrders } = useGetOrders({ pair, status: "open" }, { query: { queryKey: getGetOrdersQueryKey({ pair, status: "open" }), enabled: !!user && !!pair } });
   const { data: balances } = useGetBalances({ query: { queryKey: getGetBalancesQueryKey(), enabled: !!user } });
@@ -93,11 +90,6 @@ export default function Trade() {
       }
     });
   };
-
-  const chartData = klines?.map(k => ({
-    time: new Date(k.openTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    price: Number(k.close)
-  })) || [];
 
   const baseBalance = balances?.find(b => b.asset === baseAsset)?.available || "0";
   const quoteBalance = balances?.find(b => b.asset === quoteAsset)?.available || "0";
@@ -143,24 +135,8 @@ export default function Trade() {
         
         {/* Left Column: Chart & Orders */}
         <div className="flex-1 flex flex-col min-w-0 border-r">
-          <div className="h-[50vh] lg:h-[60%] border-b p-4 bg-card">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={isPositive ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor={isPositive ? "hsl(var(--success))" : "hsl(var(--destructive))"} stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis domain={['auto', 'auto']} stroke="hsl(var(--muted-foreground))" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => val.toLocaleString()} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                />
-                <Area type="monotone" dataKey="price" stroke={isPositive ? "hsl(var(--success))" : "hsl(var(--destructive))"} fillOpacity={1} fill="url(#colorPrice)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-[50vh] lg:h-[60%] border-b bg-card overflow-hidden">
+            <PriceChart apiPair={apiPair} isPositive={isPositive} />
           </div>
           <div className="flex-1 p-4 overflow-auto bg-card">
             <h3 className="font-semibold mb-4">Open Orders</h3>

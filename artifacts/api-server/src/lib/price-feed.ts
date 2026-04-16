@@ -103,10 +103,10 @@ async function fetchCoinGeckoOhlc(coinId: string, days: number): Promise<Array<{
 }
 
 // CoinGecko OHLC days → our interval mapping
-// days=1 → ~30min candles, days=7 → ~4h candles, days=30+ → daily
-// We'll map: 1d → "1h", 7d → "4h", 30d → "1d"
+// days=1 → ~30min candles (when granularity is 30m), days=7 → ~4h, days=30 → daily
 const SYNC_PLAN: Array<{ days: number; interval: string }> = [
-  { days: 1, interval: "1h" },
+  { days: 1, interval: "30m" },
+  { days: 2, interval: "1h" },
   { days: 7, interval: "4h" },
   { days: 30, interval: "1d" },
 ];
@@ -163,50 +163,55 @@ async function syncKlinesForPair(pair: string, coinId: string): Promise<void> {
   }
 }
 
+async function updateLatestCandleForInterval(pair: string, coinId: string, days: number, interval: string): Promise<void> {
+  const candles = await fetchCoinGeckoOhlc(coinId, days);
+  if (!candles.length) return;
+
+  const latest = candles[candles.length - 1]!;
+  const intervalMs = candles.length > 1
+    ? candles[1]!.openTime - candles[0]!.openTime
+    : (interval === "30m" ? 1800_000 : 3600_000);
+
+  await db
+    .insert(klinesTable)
+    .values({
+      pair,
+      interval,
+      openTime: latest.openTime,
+      closeTime: latest.openTime + intervalMs - 1,
+      open: latest.open.toFixed(8),
+      high: latest.high.toFixed(8),
+      low: latest.low.toFixed(8),
+      close: latest.close.toFixed(8),
+      volume: "0",
+    })
+    .onConflictDoNothing();
+
+  await db
+    .update(klinesTable)
+    .set({
+      high: latest.high.toFixed(8),
+      low: latest.low.toFixed(8),
+      close: latest.close.toFixed(8),
+    })
+    .where(
+      and(
+        eq(klinesTable.pair, pair),
+        eq(klinesTable.interval, interval),
+        eq(klinesTable.openTime, latest.openTime),
+      ),
+    );
+}
+
 async function updateLatestCandles(): Promise<void> {
   for (const [pair, coinId] of Object.entries(COINGECKO_IDS)) {
     try {
-      const candles = await fetchCoinGeckoOhlc(coinId, 1);
-      if (!candles.length) continue;
-
-      const latest = candles[candles.length - 1]!;
-      const intervalMs = candles.length > 1
-        ? candles[1]!.openTime - candles[0]!.openTime
-        : 3600_000;
-
-      await db
-        .insert(klinesTable)
-        .values({
-          pair,
-          interval: "1h",
-          openTime: latest.openTime,
-          closeTime: latest.openTime + intervalMs - 1,
-          open: latest.open.toFixed(8),
-          high: latest.high.toFixed(8),
-          low: latest.low.toFixed(8),
-          close: latest.close.toFixed(8),
-          volume: "0",
-        })
-        .onConflictDoNothing();
-
-      await db
-        .update(klinesTable)
-        .set({
-          high: latest.high.toFixed(8),
-          low: latest.low.toFixed(8),
-          close: latest.close.toFixed(8),
-        })
-        .where(
-          and(
-            eq(klinesTable.pair, pair),
-            eq(klinesTable.interval, "1h"),
-            eq(klinesTable.openTime, latest.openTime),
-          ),
-        );
-
+      await updateLatestCandleForInterval(pair, coinId, 1, "30m");
+      await new Promise(r => setTimeout(r, 1200));
+      await updateLatestCandleForInterval(pair, coinId, 2, "1h");
       await new Promise(r => setTimeout(r, 1200));
     } catch (err) {
-      logger.warn({ pair, err }, "Failed to update latest candle");
+      logger.warn({ pair, err }, "Failed to update latest candles");
     }
   }
 }
