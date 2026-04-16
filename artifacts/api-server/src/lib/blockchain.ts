@@ -36,7 +36,8 @@ export const USDT_CONTRACTS: Record<string, string> = {
 export const USDC_CONTRACTS: Record<string, string> = {
   ETH: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
   BSC: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-  POLYGON: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+  // Bridged USDC.e on Polygon (most liquid, user-specified)
+  POLYGON: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
 };
 
 // USDC decimals differ per network
@@ -44,6 +45,15 @@ export const USDC_DECIMALS: Record<string, number> = {
   ETH: 6,
   BSC: 18,
   POLYGON: 6,
+};
+
+// Additional Polygon ERC-20 tokens (all on Polygon mainnet)
+export const POLYGON_EXTRA_TOKENS: Record<string, { contractAddress: string; decimals: number }> = {
+  WETH: { contractAddress: "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619", decimals: 18 },
+  WBTC: { contractAddress: "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6", decimals: 8 },
+  UNI:  { contractAddress: "0xb33EaAd8d922B1083446DC23f610c2567fB5180f", decimals: 18 },
+  LINK: { contractAddress: "0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39", decimals: 18 },
+  SAND: { contractAddress: "0xBbba073C31bF03b8ACf7c28EF0738DeCF3695683", decimals: 18 },
 };
 
 // Native coin per network
@@ -168,7 +178,10 @@ export function isValidEVMAddress(address: string): boolean {
   return ethers.isAddress(address);
 }
 
-export function getAssetConfig(asset: string, network: string): { isNative: boolean; contractAddress?: string; decimals: number } {
+export function getAssetConfig(
+  asset: string,
+  network: string,
+): { isNative: boolean; contractAddress?: string; decimals: number } {
   const native = NATIVE_ASSET[network];
   if (asset === native) {
     return { isNative: true, decimals: 18 };
@@ -183,11 +196,18 @@ export function getAssetConfig(asset: string, network: string): { isNative: bool
     if (!contractAddress) throw new Error(`USDC not supported on network ${network}`);
     return { isNative: false, contractAddress, decimals: USDC_DECIMALS[network] ?? 6 };
   }
+  // Extra Polygon tokens (WETH, WBTC, UNI, LINK, SAND)
+  if (network === "POLYGON") {
+    const extra = POLYGON_EXTRA_TOKENS[asset];
+    if (extra) {
+      return { isNative: false, contractAddress: extra.contractAddress, decimals: extra.decimals };
+    }
+  }
   throw new Error(`Asset ${asset} not supported on network ${network}`);
 }
 
 export const SUPPORTED_DEPOSIT_ASSETS: Record<string, string[]> = {
   ETH: ["ETH", "USDT", "USDC"],
   BSC: ["BNB", "USDT", "USDC"],
-  POLYGON: ["POL", "USDT", "USDC"],
+  POLYGON: ["POL", "USDT", "USDC", "WETH", "WBTC", "UNI", "LINK", "SAND"],
 };

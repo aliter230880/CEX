@@ -37,6 +37,11 @@ const ASSET_ICONS: Record<string, string> = {
   USDT: "₮",
   USDC: "◎",
   BTC: "₿",
+  WETH: "⟠",
+  WBTC: "₿",
+  UNI:  "⊙",
+  LINK: "⬡",
+  SAND: "◫",
 };
 
 const withdrawSchema = z.object({
