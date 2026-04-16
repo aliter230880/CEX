@@ -62,8 +62,9 @@ jobs:
             set -e
             cd /root/nexex
 
-            echo "=== git pull ==="
-            git pull
+            echo "=== git sync ==="
+            git fetch origin main
+            git reset --hard origin/main
 
             echo "=== сборка API ==="
             pnpm --filter @workspace/api-server run build
