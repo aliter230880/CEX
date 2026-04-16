@@ -1,5 +1,60 @@
 import { useEffect, useRef, useState } from "react";
 
+/* ── Token SVG icons ─────────────────────────────────────────────── */
+const TOKEN_ICONS: Record<string, { svg: string; color: string; glow: string }> = {
+  BTC: {
+    color: "#F7931A",
+    glow: "#F7931A",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#F7931A"/>
+      <path d="M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z" fill="white"/>
+    </svg>`,
+  },
+  ETH: {
+    color: "#627EEA",
+    glow: "#627EEA",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#627EEA"/>
+      <path d="M16 5l-6.5 11.5L16 20l6.5-3.5L16 5z" fill="white" opacity="0.9"/>
+      <path d="M9.5 16.5L16 20l6.5-3.5-6.5 10.5-6.5-10.5z" fill="white" opacity="0.6"/>
+    </svg>`,
+  },
+  BNB: {
+    color: "#F0B90B",
+    glow: "#F0B90B",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#F0B90B"/>
+      <path d="M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z" fill="white"/>
+      <rect x="14" y="14" width="4" height="4" rx="1" fill="white" transform="rotate(45 16 16)"/>
+    </svg>`,
+  },
+  SOL: {
+    color: "#9945FF",
+    glow: "#9945FF",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="url(#solgrad)"/>
+      <defs><linearGradient id="solgrad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#9945FF"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs>
+      <path d="M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z" fill="white"/>
+    </svg>`,
+  },
+  POL: {
+    color: "#8247E5",
+    glow: "#8247E5",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#8247E5"/>
+      <path d="M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z" fill="white"/>
+    </svg>`,
+  },
+  USDT: {
+    color: "#26A17B",
+    glow: "#26A17B",
+    svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="16" cy="16" r="16" fill="#26A17B"/>
+      <path d="M17 8v3h4v2h-9v-2h4v-3h1zm-5 7c0 2.7 1.8 4.5 4 5.2v2.8h-1v-2c-3-.7-5-3-5-6h2zm6 0h2c0 3-2 5.3-5 6v2h-1v-2.8c2.2-.7 4-2.5 4-5.2z" fill="white"/>
+    </svg>`,
+  },
+};
+
 const TICKERS = [
   { symbol: "BTC", price: "83,412.00", change: "+2.34", up: true },
   { symbol: "ETH", price: "3,194.80", change: "+1.87", up: true },
@@ -9,69 +64,197 @@ const TICKERS = [
   { symbol: "USDT", price: "1.0000", change: "0.00", up: true },
 ];
 
-const FEATURES = [
-  {
-    icon: "⚡",
-    title: "Ultra-Low Latency",
-    desc: "Sub-millisecond order execution with our proprietary matching engine",
-    glow: "#00ff88",
-  },
-  {
-    icon: "🔐",
-    title: "Military-Grade Security",
-    desc: "HD wallets, cold storage, 2FA and multi-sig withdrawals",
-    glow: "#00e5ff",
-  },
-  {
-    icon: "🌐",
-    title: "Multi-Chain Support",
-    desc: "ETH, BNB Chain, Polygon — one account, all networks",
-    glow: "#a855f7",
-  },
-  {
-    icon: "📊",
-    title: "Pro Trading Tools",
-    desc: "Real-time charts, order books and advanced analytics",
-    glow: "#f59e0b",
-  },
+/* ── Floating token logos ─────────────────────────────────────────── */
+const FLOATING_TOKENS = [
+  { id: "btc", symbol: "BTC", size: 80, x: "8%",  y: "18%", delay: 0,    duration: 9  },
+  { id: "eth", symbol: "ETH", size: 64, x: "88%", y: "12%", delay: 1.5,  duration: 11 },
+  { id: "bnb", symbol: "BNB", size: 56, x: "75%", y: "55%", delay: 0.8,  duration: 8  },
+  { id: "sol", symbol: "SOL", size: 72, x: "5%",  y: "62%", delay: 2.2,  duration: 13 },
+  { id: "pol", symbol: "POL", size: 48, x: "62%", y: "80%", delay: 0.3,  duration: 10 },
+  { id: "usd", symbol: "USDT",size: 52, x: "18%", y: "82%", delay: 1.8,  duration: 12 },
 ];
 
+function FloatingToken({ token }: { token: typeof FLOATING_TOKENS[0] }) {
+  const info = TOKEN_ICONS[token.symbol];
+  if (!info) return null;
+  return (
+    <div style={{
+      position: "absolute",
+      left: token.x,
+      top: token.y,
+      width: token.size,
+      height: token.size,
+      zIndex: 3,
+      animation: `floatToken ${token.duration}s ease-in-out infinite`,
+      animationDelay: `${token.delay}s`,
+    }}>
+      {/* Glass ring */}
+      <div style={{
+        position: "absolute",
+        inset: -8,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${info.glow}18 0%, transparent 70%)`,
+        border: `1px solid ${info.glow}30`,
+        animation: `pulseRing ${token.duration * 0.7}s ease-in-out infinite`,
+        animationDelay: `${token.delay}s`,
+      }} />
+      {/* Coin */}
+      <div style={{
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+        background: `rgba(255,255,255,0.06)`,
+        backdropFilter: "blur(16px)",
+        border: `1.5px solid ${info.glow}40`,
+        boxShadow: `0 8px 32px ${info.glow}30, 0 0 0 1px rgba(255,255,255,0.06) inset, 0 2px 0 rgba(255,255,255,0.15) inset`,
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <div
+          dangerouslySetInnerHTML={{ __html: info.svg }}
+          style={{ width: "70%", height: "70%", filter: `drop-shadow(0 0 6px ${info.glow}80)` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── Liquid blob background ──────────────────────────────────────── */
+function LiquidBlobs() {
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1, pointerEvents: "none", overflow: "hidden" }}>
+      {/* SVG filter for liquid/gooey effect */}
+      <svg width="0" height="0" style={{ position: "absolute" }}>
+        <defs>
+          <filter id="goo">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="18" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -9" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+          <filter id="goo2">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur" />
+            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" result="goo" />
+            <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+          </filter>
+        </defs>
+      </svg>
+
+      {/* Green liquid blobs */}
+      <div style={{ position: "absolute", top: "5%", left: "10%", filter: "url(#goo)" }}>
+        <div style={{
+          width: 320, height: 320, borderRadius: "50%",
+          background: "rgba(0,255,136,0.07)",
+          animation: "liquidBlob1 14s ease-in-out infinite",
+        }} />
+        <div style={{
+          width: 220, height: 220, borderRadius: "50%",
+          background: "rgba(0,255,136,0.05)",
+          marginTop: -180, marginLeft: 60,
+          animation: "liquidBlob2 11s ease-in-out infinite 2s",
+        }} />
+        <div style={{
+          width: 160, height: 160, borderRadius: "50%",
+          background: "rgba(0,255,136,0.06)",
+          marginTop: -140, marginLeft: 130,
+          animation: "liquidBlob3 9s ease-in-out infinite 1s",
+        }} />
+      </div>
+
+      {/* Cyan blobs right side */}
+      <div style={{ position: "absolute", top: "40%", right: "5%", filter: "url(#goo2)" }}>
+        <div style={{
+          width: 260, height: 260, borderRadius: "50%",
+          background: "rgba(0,229,255,0.06)",
+          animation: "liquidBlob3 13s ease-in-out infinite 0.5s",
+        }} />
+        <div style={{
+          width: 180, height: 180, borderRadius: "50%",
+          background: "rgba(0,229,255,0.05)",
+          marginTop: -150, marginLeft: 50,
+          animation: "liquidBlob1 10s ease-in-out infinite 3s",
+        }} />
+      </div>
+
+      {/* Purple blobs bottom */}
+      <div style={{ position: "absolute", bottom: "10%", left: "35%", filter: "url(#goo)" }}>
+        <div style={{
+          width: 280, height: 280, borderRadius: "50%",
+          background: "rgba(168,85,247,0.06)",
+          animation: "liquidBlob2 15s ease-in-out infinite 1.5s",
+        }} />
+        <div style={{
+          width: 160, height: 160, borderRadius: "50%",
+          background: "rgba(168,85,247,0.05)",
+          marginTop: -120, marginLeft: 80,
+          animation: "liquidBlob3 12s ease-in-out infinite",
+        }} />
+      </div>
+
+      {/* Soft glow orbs (no filter — behind blobs) */}
+      <div style={{
+        position: "absolute", top: "15%", left: "20%",
+        width: 500, height: 500, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(0,255,136,0.09) 0%, transparent 70%)",
+        filter: "blur(50px)",
+        animation: "orbDrift 18s ease-in-out infinite",
+      }} />
+      <div style={{
+        position: "absolute", bottom: "20%", right: "15%",
+        width: 400, height: 400, borderRadius: "50%",
+        background: "radial-gradient(circle, rgba(0,229,255,0.08) 0%, transparent 70%)",
+        filter: "blur(50px)",
+        animation: "orbDrift 14s ease-in-out infinite reverse 2s",
+      }} />
+
+      {/* Grid */}
+      <div style={{
+        position: "absolute", inset: 0,
+        backgroundImage: `linear-gradient(rgba(0,255,136,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,136,0.025) 1px, transparent 1px)`,
+        backgroundSize: "60px 60px",
+      }} />
+      {/* Scan line */}
+      <div style={{
+        position: "absolute", left: 0, right: 0, height: 2,
+        background: "linear-gradient(90deg, transparent 0%, rgba(0,255,136,0.12) 30%, rgba(0,255,136,0.25) 50%, rgba(0,255,136,0.12) 70%, transparent 100%)",
+        animation: "scanLine 10s linear infinite",
+      }} />
+    </div>
+  );
+}
+
+/* ── Particle canvas ─────────────────────────────────────────────── */
 function ParticleCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
+    resize();
+    window.addEventListener("resize", resize);
 
-    const particles: { x: number; y: number; vx: number; vy: number; r: number; alpha: number; color: string }[] = [];
-    const colors = ["#00ff88", "#00e5ff", "#a855f7", "#3b82f6"];
-
-    for (let i = 0; i < 80; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        r: Math.random() * 2 + 0.5,
-        alpha: Math.random() * 0.6 + 0.1,
-        color: colors[Math.floor(Math.random() * colors.length)],
-      });
-    }
+    const colors = ["#00ff88", "#00e5ff", "#a855f7", "#3b82f6", "#f59e0b"];
+    const particles = Array.from({ length: 70 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.35,
+      vy: (Math.random() - 0.5) * 0.35,
+      r: Math.random() * 1.8 + 0.4,
+      alpha: Math.random() * 0.5 + 0.1,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    }));
 
     let raf: number;
     const draw = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       for (const p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
+        p.x += p.vx; p.y += p.vy;
         if (p.x < 0) p.x = canvas.width;
         if (p.x > canvas.width) p.x = 0;
         if (p.y < 0) p.y = canvas.height;
         if (p.y > canvas.height) p.y = 0;
-
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx.fillStyle = p.color;
@@ -79,19 +262,17 @@ function ParticleCanvas() {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-
-      // Connect close particles
       for (let i = 0; i < particles.length; i++) {
         for (let j = i + 1; j < particles.length; j++) {
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 100) {
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < 90) {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
             ctx.strokeStyle = "#00ff88";
-            ctx.globalAlpha = (1 - dist / 100) * 0.08;
+            ctx.globalAlpha = (1 - d / 90) * 0.07;
             ctx.lineWidth = 0.5;
             ctx.stroke();
             ctx.globalAlpha = 1;
@@ -101,287 +282,244 @@ function ParticleCanvas() {
       raf = requestAnimationFrame(draw);
     };
     draw();
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); };
   }, []);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
-  );
+  return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />;
 }
 
+/* ── Ticker ──────────────────────────────────────────────────────── */
 function TickerRow() {
   const [offset, setOffset] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setOffset(o => o - 0.5), 16);
+    const id = setInterval(() => setOffset(o => o - 0.45), 16);
     return () => clearInterval(id);
   }, []);
-
   const doubled = [...TICKERS, ...TICKERS, ...TICKERS];
   return (
-    <div className="overflow-hidden border-y border-white/5 bg-white/[0.02] backdrop-blur-sm py-3">
-      <div
-        className="flex gap-4 whitespace-nowrap"
-        style={{ transform: `translateX(${offset % (TICKERS.length * 220)}px)`, transition: "none" }}
-      >
-        {doubled.map((t, i) => (
-          <div
-            key={i}
-            className="inline-flex items-center gap-2 px-5 py-2 rounded-full"
-            style={{
+    <div style={{
+      overflow: "hidden",
+      borderTop: "1px solid rgba(255,255,255,0.05)",
+      borderBottom: "1px solid rgba(255,255,255,0.05)",
+      background: "rgba(255,255,255,0.015)",
+      backdropFilter: "blur(8px)",
+      padding: "10px 0",
+      position: "relative", zIndex: 10,
+    }}>
+      <div style={{ display: "flex", gap: 12, whiteSpace: "nowrap", transform: `translateX(${offset % (TICKERS.length * 210)}px)` }}>
+        {doubled.map((t, i) => {
+          const info = TOKEN_ICONS[t.symbol];
+          return (
+            <div key={i} style={{
+              display: "inline-flex", alignItems: "center", gap: 8,
+              padding: "6px 16px", borderRadius: 50, minWidth: 195,
               background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              minWidth: 200,
-            }}
-          >
-            <span className="text-sm font-bold text-white/70">{t.symbol}/USDT</span>
-            <span className="text-sm font-mono font-semibold text-white">${t.price}</span>
-            <span className={`text-xs font-semibold ${t.up ? "text-emerald-400" : "text-red-400"}`}>
-              {t.up ? "▲" : "▼"} {t.change}%
-            </span>
-          </div>
-        ))}
+              border: `1px solid ${info?.glow ?? "#fff"}18`,
+              backdropFilter: "blur(12px)",
+            }}>
+              <div dangerouslySetInnerHTML={{ __html: info?.svg ?? "" }} style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>{t.symbol}/USDT</span>
+              <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: "#fff" }}>${t.price}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: t.up ? "#00ff88" : "#f87171" }}>
+                {t.up ? "▲" : "▼"} {t.change}%
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function GlassCard({ feature }: { feature: typeof FEATURES[0] }) {
-  const [hovered, setHovered] = useState(false);
+/* ── Mini chart bars ─────────────────────────────────────────────── */
+function MiniChart() {
+  const vals = [45, 62, 38, 71, 55, 80, 48, 92, 67, 85, 58, 76, 42, 88, 63, 74, 51, 95, 69, 82];
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 72 }}>
+      {vals.map((h, i) => (
+        <div key={i} style={{
+          flex: 1, height: `${h}%`, borderRadius: "3px 3px 0 0",
+          background: i > 15 ? "linear-gradient(180deg,#00ff88,#00c866)" : i > 10 ? "rgba(0,255,136,0.35)" : "rgba(255,255,255,0.07)",
+          boxShadow: i > 15 ? "0 0 8px rgba(0,255,136,0.5)" : "none",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+/* ── Glass feature card ──────────────────────────────────────────── */
+function GlassCard({ icon, title, desc, glow }: { icon: string; title: string; desc: string; glow: string }) {
+  const [hov, setHov] = useState(false);
   return (
     <div
-      className="relative p-6 rounded-2xl cursor-pointer transition-all duration-500"
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
       style={{
-        background: hovered
-          ? `linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%)`
-          : "rgba(255,255,255,0.03)",
-        border: hovered ? `1px solid ${feature.glow}44` : "1px solid rgba(255,255,255,0.07)",
+        padding: "24px 22px", borderRadius: 20, cursor: "default",
+        background: hov ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.025)",
+        border: hov ? `1px solid ${glow}44` : "1px solid rgba(255,255,255,0.07)",
         backdropFilter: "blur(20px)",
-        boxShadow: hovered ? `0 0 30px ${feature.glow}22, inset 0 1px 0 rgba(255,255,255,0.1)` : "inset 0 1px 0 rgba(255,255,255,0.05)",
-        transform: hovered ? "translateY(-4px)" : "translateY(0)",
+        boxShadow: hov ? `0 0 30px ${glow}20, inset 0 1px 0 rgba(255,255,255,0.1)` : "inset 0 1px 0 rgba(255,255,255,0.04)",
+        transform: hov ? "translateY(-5px)" : "translateY(0)",
+        transition: "all 0.4s cubic-bezier(0.4,0,0.2,1)",
+        position: "relative", overflow: "hidden",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
-      <div
-        className="text-3xl mb-4 w-12 h-12 flex items-center justify-center rounded-xl"
-        style={{
-          background: `linear-gradient(135deg, ${feature.glow}22, ${feature.glow}08)`,
-          border: `1px solid ${feature.glow}33`,
-          boxShadow: `0 0 20px ${feature.glow}22`,
-        }}
-      >
-        {feature.icon}
-      </div>
-      <h3 className="text-white font-semibold text-lg mb-2">{feature.title}</h3>
-      <p className="text-white/40 text-sm leading-relaxed">{feature.desc}</p>
-
-      {hovered && (
-        <div
-          className="absolute inset-0 rounded-2xl pointer-events-none"
-          style={{
-            background: `radial-gradient(circle at 50% 0%, ${feature.glow}0a 0%, transparent 70%)`,
-          }}
-        />
-      )}
+      <div style={{
+        width: 48, height: 48, borderRadius: 14, marginBottom: 16, fontSize: 22,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: `linear-gradient(135deg,${glow}22,${glow}08)`,
+        border: `1px solid ${glow}30`,
+        boxShadow: `0 0 20px ${glow}20`,
+      }}>{icon}</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 8 }}>{title}</div>
+      <div style={{ fontSize: 13, color: "rgba(255,255,255,0.38)", lineHeight: 1.6 }}>{desc}</div>
+      {hov && <div style={{
+        position: "absolute", inset: 0, borderRadius: 20, pointerEvents: "none",
+        background: `radial-gradient(circle at 50% 0%, ${glow}0d 0%, transparent 70%)`,
+      }} />}
     </div>
   );
 }
 
-function StatCard({ value, label, sub }: { value: string; label: string; sub: string }) {
-  return (
-    <div
-      className="flex flex-col items-center p-6 rounded-2xl"
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-        backdropFilter: "blur(20px)",
-      }}
-    >
-      <div
-        className="text-3xl font-bold mb-1"
-        style={{
-          background: "linear-gradient(135deg, #00ff88, #00e5ff)",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-        }}
-      >
-        {value}
-      </div>
-      <div className="text-white/80 font-medium text-sm">{label}</div>
-      <div className="text-white/30 text-xs mt-1">{sub}</div>
-    </div>
-  );
-}
-
+/* ── Main component ──────────────────────────────────────────────── */
 export function Landing() {
   return (
-    <div className="min-h-screen text-white overflow-x-hidden font-sans" style={{ background: "#050912" }}>
+    <div style={{ minHeight: "100vh", background: "#050912", color: "#fff", overflowX: "hidden", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          33% { transform: translateY(-18px) rotate(1deg); }
-          66% { transform: translateY(-8px) rotate(-1deg); }
+        @keyframes floatToken {
+          0%, 100% { transform: translateY(0px) rotate(-2deg) scale(1); }
+          30%  { transform: translateY(-22px) rotate(3deg) scale(1.04); }
+          60%  { transform: translateY(-10px) rotate(-1deg) scale(0.97); }
+          80%  { transform: translateY(-18px) rotate(2deg) scale(1.02); }
         }
-        @keyframes pulse-glow {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
+        @keyframes pulseRing {
+          0%, 100% { opacity: 0.4; transform: scale(1); }
+          50%       { opacity: 0.9; transform: scale(1.08); }
         }
-        @keyframes scan {
-          0% { transform: translateY(-100%); }
-          100% { transform: translateY(400%); }
+        @keyframes liquidBlob1 {
+          0%,100% { border-radius: 60% 40% 55% 45%/45% 55% 40% 60%; transform: translate(0,0) scale(1); }
+          25%     { border-radius: 45% 55% 40% 60%/55% 45% 60% 40%; transform: translate(30px,-20px) scale(1.04); }
+          50%     { border-radius: 55% 45% 60% 40%/40% 60% 45% 55%; transform: translate(-15px,25px) scale(0.96); }
+          75%     { border-radius: 40% 60% 45% 55%/60% 40% 55% 45%; transform: translate(20px,10px) scale(1.02); }
         }
-        @keyframes shimmer {
-          0% { background-position: -200% center; }
+        @keyframes liquidBlob2 {
+          0%,100% { border-radius: 45% 55% 65% 35%/35% 65% 45% 55%; transform: translate(0,0) rotate(0deg); }
+          33%     { border-radius: 65% 35% 45% 55%/55% 45% 65% 35%; transform: translate(-25px,20px) rotate(10deg); }
+          66%     { border-radius: 35% 65% 55% 45%/45% 55% 35% 65%; transform: translate(20px,-15px) rotate(-8deg); }
+        }
+        @keyframes liquidBlob3 {
+          0%,100% { border-radius: 70% 30% 50% 50%/50% 50% 70% 30%; transform: scale(1) translate(0,0); }
+          40%     { border-radius: 30% 70% 60% 40%/40% 60% 30% 70%; transform: scale(1.06) translate(15px,-20px); }
+          80%     { border-radius: 50% 50% 30% 70%/70% 30% 50% 50%; transform: scale(0.94) translate(-10px,15px); }
+        }
+        @keyframes orbDrift {
+          0%,100% { transform: translate(0,0) scale(1); }
+          25%     { transform: translate(40px,-30px) scale(1.06); }
+          50%     { transform: translate(-20px,25px) scale(0.95); }
+          75%     { transform: translate(30px,40px) scale(1.03); }
+        }
+        @keyframes scanLine {
+          0%   { transform: translateY(-100vh); }
+          100% { transform: translateY(200vh); }
+        }
+        @keyframes shimmerText {
+          0%   { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-        @keyframes orb-drift {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          25% { transform: translate(40px, -30px) scale(1.05); }
-          50% { transform: translate(-20px, 20px) scale(0.95); }
-          75% { transform: translate(30px, 40px) scale(1.02); }
+        @keyframes glowPulse {
+          0%,100% { opacity: 0.5; }
+          50%      { opacity: 1; }
         }
-        @keyframes border-glow {
-          0%, 100% { border-color: rgba(0,255,136,0.2); box-shadow: 0 0 20px rgba(0,255,136,0.1); }
-          50% { border-color: rgba(0,229,255,0.3); box-shadow: 0 0 30px rgba(0,229,255,0.15); }
+        @keyframes borderGlow {
+          0%,100% { border-color: rgba(0,255,136,0.2); box-shadow: 0 0 16px rgba(0,255,136,0.08); }
+          50%      { border-color: rgba(0,229,255,0.3); box-shadow: 0 0 24px rgba(0,229,255,0.12); }
         }
-        .shimmer-text {
-          background: linear-gradient(90deg, #00ff88, #00e5ff, #a855f7, #00ff88);
-          background-size: 200% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: shimmer 4s linear infinite;
+        @keyframes dashFloat {
+          0%,100% { transform: translateY(0) rotate(0deg); }
+          33%     { transform: translateY(-14px) rotate(0.5deg); }
+          66%     { transform: translateY(-6px) rotate(-0.5deg); }
         }
-        .cta-btn {
+        .btn-shine {
           position: relative;
           overflow: hidden;
           transition: all 0.3s;
         }
-        .cta-btn::before {
+        .btn-shine::before {
           content: '';
           position: absolute;
-          top: -50%;
-          left: -100%;
-          width: 300%;
-          height: 200%;
-          background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%);
+          top: -50%; left: -120%;
+          width: 280%; height: 200%;
+          background: linear-gradient(120deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
           transition: left 0.5s;
         }
-        .cta-btn:hover::before { left: 100%; }
-        .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(0,255,136,0.4); }
+        .btn-shine:hover::before { left: 120%; }
+        .btn-shine:hover { transform: translateY(-2px); box-shadow: 0 0 40px rgba(0,255,136,0.45) !important; }
       `}</style>
 
       <ParticleCanvas />
+      <LiquidBlobs />
 
-      {/* Background orbs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 1 }}>
-        <div style={{
-          position: "absolute", top: "10%", left: "15%",
-          width: 500, height: 500, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(0,255,136,0.12) 0%, transparent 70%)",
-          filter: "blur(60px)",
-          animation: "orb-drift 12s ease-in-out infinite",
-        }} />
-        <div style={{
-          position: "absolute", top: "50%", right: "10%",
-          width: 400, height: 400, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(0,229,255,0.1) 0%, transparent 70%)",
-          filter: "blur(60px)",
-          animation: "orb-drift 16s ease-in-out infinite reverse",
-        }} />
-        <div style={{
-          position: "absolute", bottom: "15%", left: "40%",
-          width: 300, height: 300, borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(168,85,247,0.1) 0%, transparent 70%)",
-          filter: "blur(50px)",
-          animation: "orb-drift 10s ease-in-out infinite 3s",
-        }} />
-        {/* Grid */}
-        <div style={{
-          position: "absolute", inset: 0,
-          backgroundImage: `
-            linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px)
-          `,
-          backgroundSize: "60px 60px",
-        }} />
-        {/* Scan line */}
-        <div style={{
-          position: "absolute", left: 0, right: 0,
-          height: 2,
-          background: "linear-gradient(90deg, transparent, rgba(0,255,136,0.15), transparent)",
-          animation: "scan 8s linear infinite",
-        }} />
+      {/* Floating token logos */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 4, pointerEvents: "none" }}>
+        {FLOATING_TOKENS.map(t => <FloatingToken key={t.id} token={t} />)}
       </div>
 
-      {/* Navbar */}
-      <nav className="relative sticky top-0" style={{
-        zIndex: 50,
-        background: "rgba(5,9,18,0.7)",
+      {/* ── Navbar ── */}
+      <nav style={{
+        position: "sticky", top: 0, zIndex: 50,
+        background: "rgba(5,9,18,0.72)",
         backdropFilter: "blur(24px)",
         borderBottom: "1px solid rgba(255,255,255,0.05)",
       }}>
-        <div className="max-w-7xl mx-auto px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 40px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
-              width: 36, height: 36,
-              background: "linear-gradient(135deg, #00ff88, #00e5ff)",
-              borderRadius: 10,
+              width: 36, height: 36, borderRadius: 10,
+              background: "linear-gradient(135deg,#00ff88,#00c866)",
               display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: "0 0 20px rgba(0,255,136,0.4)",
               fontSize: 18, fontWeight: 900, color: "#050912",
+              boxShadow: "0 0 20px rgba(0,255,136,0.4)",
             }}>A</div>
             <span style={{
               fontSize: 22, fontWeight: 800, letterSpacing: -0.5,
-              background: "linear-gradient(135deg, #fff 60%, rgba(255,255,255,0.6))",
+              background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,0.55))",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
             }}>ATEX</span>
             <span style={{
-              fontSize: 11, padding: "2px 8px", borderRadius: 20,
+              fontSize: 10, padding: "2px 8px", borderRadius: 20,
               background: "rgba(0,255,136,0.12)",
               border: "1px solid rgba(0,255,136,0.25)",
-              color: "#00ff88", fontWeight: 600, letterSpacing: 1,
+              color: "#00ff88", fontWeight: 700, letterSpacing: 1,
             }}>PRO</span>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div style={{ display: "flex", gap: 2 }}>
             {["Markets", "Trade", "Earn", "Launchpad"].map(item => (
               <a key={item} href="#" style={{
                 padding: "8px 16px", borderRadius: 8,
-                color: "rgba(255,255,255,0.5)",
-                fontSize: 14, fontWeight: 500,
+                color: "rgba(255,255,255,0.48)", fontSize: 14, fontWeight: 500, textDecoration: "none",
                 transition: "all 0.2s",
               }}
-                onMouseEnter={e => {
-                  (e.target as HTMLElement).style.color = "#fff";
-                  (e.target as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-                }}
-                onMouseLeave={e => {
-                  (e.target as HTMLElement).style.color = "rgba(255,255,255,0.5)";
-                  (e.target as HTMLElement).style.background = "transparent";
-                }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = "#fff"; (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.48)"; (e.currentTarget as HTMLElement).style.background = "transparent"; }}
               >{item}</a>
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div style={{ display: "flex", gap: 10 }}>
             <button style={{
               padding: "9px 20px", borderRadius: 10,
               background: "rgba(255,255,255,0.05)",
               border: "1px solid rgba(255,255,255,0.1)",
               color: "rgba(255,255,255,0.7)",
               fontSize: 14, fontWeight: 600, cursor: "pointer",
-              transition: "all 0.2s",
             }}>Log In</button>
-            <button className="cta-btn" style={{
+            <button className="btn-shine" style={{
               padding: "9px 22px", borderRadius: 10,
-              background: "linear-gradient(135deg, #00ff88, #00c866)",
-              border: "none",
-              color: "#050912",
-              fontSize: 14, fontWeight: 700, cursor: "pointer",
+              background: "linear-gradient(135deg,#00ff88,#00c866)",
+              border: "none", color: "#050912",
+              fontSize: 14, fontWeight: 800, cursor: "pointer",
+              boxShadow: "0 0 24px rgba(0,255,136,0.3)",
             }}>Get Started</button>
           </div>
         </div>
@@ -390,141 +528,118 @@ export function Landing() {
       {/* Ticker */}
       <TickerRow />
 
-      {/* Hero */}
-      <section className="relative" style={{ zIndex: 2, paddingTop: 90, paddingBottom: 80 }}>
-        <div className="max-w-7xl mx-auto px-8 flex flex-col items-center text-center">
+      {/* ── Hero ── */}
+      <section style={{ position: "relative", zIndex: 5, padding: "90px 40px 60px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
 
+          {/* Live badge */}
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "6px 16px", borderRadius: 50,
-            background: "rgba(0,255,136,0.08)",
+            padding: "6px 18px", borderRadius: 50, marginBottom: 32,
+            background: "rgba(0,255,136,0.07)",
             border: "1px solid rgba(0,255,136,0.2)",
-            marginBottom: 28,
-            animation: "border-glow 3s ease-in-out infinite",
+            animation: "borderGlow 3s ease-in-out infinite",
           }}>
-            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#00ff88", boxShadow: "0 0 8px #00ff88", animation: "pulse-glow 2s ease-in-out infinite" }} />
-            <span style={{ color: "#00ff88", fontSize: 13, fontWeight: 600 }}>Live • 127,438 traders online</span>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#00ff88", boxShadow: "0 0 8px #00ff88", animation: "glowPulse 2s ease-in-out infinite" }} />
+            <span style={{ color: "#00ff88", fontSize: 13, fontWeight: 600 }}>Live · 127,438 traders online</span>
           </div>
 
           <h1 style={{
-            fontSize: "clamp(42px, 6vw, 72px)",
-            fontWeight: 900,
-            lineHeight: 1.08,
-            letterSpacing: -2,
-            marginBottom: 24,
-            maxWidth: 800,
+            fontSize: "clamp(44px,6.5vw,76px)",
+            fontWeight: 900, lineHeight: 1.06, letterSpacing: -2.5,
+            marginBottom: 24, maxWidth: 820,
           }}>
             <span style={{
-              background: "linear-gradient(180deg, #ffffff 40%, rgba(255,255,255,0.6) 100%)",
+              background: "linear-gradient(180deg,#fff 40%,rgba(255,255,255,0.55))",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
             }}>The Future of</span>
             <br />
-            <span className="shimmer-text">Crypto Trading</span>
+            <span style={{
+              background: "linear-gradient(90deg,#00ff88,#00e5ff,#a855f7,#00ff88)",
+              backgroundSize: "200% auto",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              animation: "shimmerText 4s linear infinite",
+            }}>Crypto Trading</span>
             <br />
             <span style={{
-              background: "linear-gradient(180deg, #ffffff 40%, rgba(255,255,255,0.6) 100%)",
+              background: "linear-gradient(180deg,#fff 40%,rgba(255,255,255,0.55))",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            }}>is Here</span>
+            }}>Starts Here</span>
           </h1>
 
-          <p style={{
-            fontSize: 18, lineHeight: 1.7,
-            color: "rgba(255,255,255,0.45)",
-            maxWidth: 540, marginBottom: 42,
-          }}>
+          <p style={{ fontSize: 18, lineHeight: 1.7, color: "rgba(255,255,255,0.4)", maxWidth: 520, marginBottom: 44 }}>
             Trade 200+ cryptocurrencies with the speed, security and intelligence of a professional-grade exchange — designed for everyone.
           </p>
 
-          <div className="flex items-center gap-4" style={{ marginBottom: 70 }}>
-            <button className="cta-btn" style={{
-              padding: "16px 36px", borderRadius: 14,
-              background: "linear-gradient(135deg, #00ff88, #00c866)",
-              border: "none",
-              color: "#050912",
+          <div style={{ display: "flex", gap: 14, marginBottom: 72 }}>
+            <button className="btn-shine" style={{
+              padding: "16px 38px", borderRadius: 14,
+              background: "linear-gradient(135deg,#00ff88,#00c866)",
+              border: "none", color: "#050912",
               fontSize: 16, fontWeight: 800, cursor: "pointer",
-              boxShadow: "0 0 30px rgba(0,255,136,0.3), 0 4px 24px rgba(0,0,0,0.4)",
-            }}>
-              Start Trading Free →
-            </button>
+              boxShadow: "0 0 30px rgba(0,255,136,0.32), 0 4px 24px rgba(0,0,0,0.4)",
+            }}>Start Trading Free →</button>
             <button style={{
               padding: "16px 36px", borderRadius: 14,
               background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              color: "rgba(255,255,255,0.8)",
+              border: "1px solid rgba(255,255,255,0.11)",
+              color: "rgba(255,255,255,0.75)",
               fontSize: 16, fontWeight: 600, cursor: "pointer",
               backdropFilter: "blur(12px)",
               transition: "all 0.3s",
-            }}>
-              ▶ Watch Demo
-            </button>
+            }}>▶ Watch Demo</button>
           </div>
 
-          {/* Floating mock dashboard card */}
+          {/* Floating dashboard card */}
           <div style={{
-            width: "100%", maxWidth: 820,
-            borderRadius: 24,
-            background: "rgba(255,255,255,0.03)",
+            width: "100%", maxWidth: 840,
+            borderRadius: 28,
+            background: "rgba(255,255,255,0.025)",
             border: "1px solid rgba(255,255,255,0.08)",
-            backdropFilter: "blur(30px)",
-            boxShadow: "0 40px 80px rgba(0,0,0,0.6), 0 0 60px rgba(0,255,136,0.05), inset 0 1px 0 rgba(255,255,255,0.08)",
-            padding: 28,
-            animation: "float 8s ease-in-out infinite",
-            position: "relative",
-            overflow: "hidden",
+            backdropFilter: "blur(36px)",
+            boxShadow: "0 40px 100px rgba(0,0,0,0.7), 0 0 60px rgba(0,255,136,0.04), inset 0 1px 0 rgba(255,255,255,0.07)",
+            padding: 32,
+            animation: "dashFloat 9s ease-in-out infinite",
+            position: "relative", overflow: "hidden",
           }}>
-            {/* Scan overlay inside card */}
+            {/* Inner glow */}
             <div style={{
-              position: "absolute", inset: 0, borderRadius: 24,
-              background: "linear-gradient(180deg, transparent 0%, rgba(0,255,136,0.02) 50%, transparent 100%)",
-              pointerEvents: "none",
+              position: "absolute", top: 0, left: "25%", right: "25%", height: 1,
+              background: "linear-gradient(90deg, transparent, rgba(0,255,136,0.4), transparent)",
+            }} />
+            <div style={{
+              position: "absolute", inset: 0, borderRadius: 28, pointerEvents: "none",
+              background: "radial-gradient(circle at 50% 0%, rgba(0,255,136,0.04) 0%, transparent 60%)",
             }} />
 
-            {/* Mini chart header */}
-            <div className="flex items-center justify-between mb-5">
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
               <div>
-                <div style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", marginBottom: 4 }}>BTC / USDT</div>
-                <div style={{ fontSize: 32, fontWeight: 800, color: "#fff", letterSpacing: -1 }}>$83,412<span style={{ fontSize: 18, color: "rgba(255,255,255,0.4)" }}>.00</span></div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>BTC / USDT · 1H</div>
+                <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: -1.5, color: "#fff" }}>
+                  $83,412<span style={{ fontSize: 20, color: "rgba(255,255,255,0.35)" }}>.00</span>
+                </div>
               </div>
-              <div style={{
-                padding: "6px 14px", borderRadius: 8,
-                background: "rgba(0,255,136,0.12)",
-                border: "1px solid rgba(0,255,136,0.2)",
-                color: "#00ff88", fontSize: 14, fontWeight: 700,
-              }}>▲ +2.34%</div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(0,255,136,0.12)", border: "1px solid rgba(0,255,136,0.22)", color: "#00ff88", fontSize: 15, fontWeight: 700, marginBottom: 8 }}>▲ +2.34%</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.3)" }}>24h vol $2.4B</div>
+              </div>
             </div>
 
-            {/* Fake chart bars */}
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80, marginBottom: 20 }}>
-              {[45, 62, 38, 71, 55, 80, 48, 92, 67, 85, 58, 76, 42, 88, 63, 74, 51, 95, 69, 82].map((h, i) => (
-                <div key={i} style={{
-                  flex: 1,
-                  height: `${h}%`,
-                  borderRadius: "3px 3px 0 0",
-                  background: i > 15
-                    ? "linear-gradient(180deg, #00ff88, #00c866)"
-                    : i > 10 ? "rgba(0,255,136,0.4)" : "rgba(255,255,255,0.08)",
-                  boxShadow: i > 15 ? "0 0 8px rgba(0,255,136,0.4)" : "none",
-                  transition: "all 0.3s",
-                }} />
-              ))}
-            </div>
+            <MiniChart />
 
-            {/* Bottom stats row */}
-            <div style={{ display: "flex", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginTop: 20 }}>
               {[
-                { label: "24h Volume", value: "$2.4B", color: "#00e5ff" },
-                { label: "24h High", value: "$84,720", color: "#00ff88" },
-                { label: "24h Low", value: "$81,350", color: "#f87171" },
-                { label: "Open Interest", value: "$18.2B", color: "#a855f7" },
+                { label: "24h Volume", value: "$2.4B",  color: "#00e5ff" },
+                { label: "24h High",   value: "$84,720", color: "#00ff88" },
+                { label: "24h Low",    value: "$81,350", color: "#f87171" },
+                { label: "Open Int.",  value: "$18.2B",  color: "#a855f7" },
               ].map(s => (
                 <div key={s.label} style={{
-                  flex: 1,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  background: "rgba(255,255,255,0.03)",
+                  padding: "12px 14px", borderRadius: 12,
+                  background: "rgba(255,255,255,0.025)",
                   border: "1px solid rgba(255,255,255,0.06)",
                 }}>
-                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4 }}>{s.label}</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.value}</div>
                 </div>
               ))}
@@ -534,103 +649,108 @@ export function Landing() {
       </section>
 
       {/* Stats */}
-      <section style={{ position: "relative", zIndex: 2, padding: "20px 0 60px" }}>
-        <div className="max-w-7xl mx-auto px-8">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            <StatCard value="$4.2B" label="Daily Volume" sub="Across all pairs" />
-            <StatCard value="200+" label="Trading Pairs" sub="Spot & derivatives" />
-            <StatCard value="98ms" label="Order Speed" sub="Average execution" />
-            <StatCard value="850K+" label="Active Traders" sub="In 150+ countries" />
-          </div>
+      <section style={{ position: "relative", zIndex: 5, padding: "20px 40px 60px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+          {[
+            { v: "$4.2B", l: "Daily Volume", s: "Across all pairs" },
+            { v: "200+",  l: "Trading Pairs", s: "Spot & derivatives" },
+            { v: "98ms",  l: "Order Speed",  s: "Average execution" },
+            { v: "850K+", l: "Active Traders", s: "In 150+ countries" },
+          ].map(s => (
+            <div key={s.l} style={{
+              padding: "28px 24px", borderRadius: 20, textAlign: "center",
+              background: "rgba(255,255,255,0.025)",
+              border: "1px solid rgba(255,255,255,0.07)",
+              backdropFilter: "blur(20px)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)",
+            }}>
+              <div style={{
+                fontSize: 34, fontWeight: 900, marginBottom: 6, letterSpacing: -1,
+                background: "linear-gradient(135deg,#00ff88,#00e5ff)",
+                WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              }}>{s.v}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "rgba(255,255,255,0.75)", marginBottom: 4 }}>{s.l}</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.28)" }}>{s.s}</div>
+            </div>
+          ))}
         </div>
       </section>
 
       {/* Features */}
-      <section style={{ position: "relative", zIndex: 2, padding: "40px 0 80px" }}>
-        <div className="max-w-7xl mx-auto px-8">
-          <div className="text-center mb-12">
+      <section style={{ position: "relative", zIndex: 5, padding: "20px 40px 80px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: 48 }}>
             <h2 style={{
-              fontSize: 40, fontWeight: 800, letterSpacing: -1,
-              background: "linear-gradient(180deg, #fff 50%, rgba(255,255,255,0.5))",
+              fontSize: 42, fontWeight: 900, letterSpacing: -1.5, marginBottom: 12,
+              background: "linear-gradient(180deg,#fff 50%,rgba(255,255,255,0.45))",
               WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-              marginBottom: 12,
             }}>Built for Performance</h2>
-            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: 16 }}>Enterprise-grade infrastructure, consumer-friendly design</p>
+            <p style={{ color: "rgba(255,255,255,0.3)", fontSize: 16 }}>Enterprise-grade infrastructure, consumer-friendly design</p>
           </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            {FEATURES.map(f => <GlassCard key={f.title} feature={f} />)}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16 }}>
+            <GlassCard icon="⚡" title="Ultra-Low Latency" desc="Sub-ms order execution with our matching engine" glow="#00ff88" />
+            <GlassCard icon="🔐" title="Military Security" desc="HD wallets, cold storage, 2FA & multi-sig" glow="#00e5ff" />
+            <GlassCard icon="🌐" title="Multi-Chain" desc="ETH, BSC, Polygon — one account, all networks" glow="#a855f7" />
+            <GlassCard icon="📊" title="Pro Analytics" desc="Real-time charts, order books & depth data" glow="#f59e0b" />
           </div>
         </div>
       </section>
 
-      {/* CTA Banner */}
-      <section style={{ position: "relative", zIndex: 2, padding: "0 0 80px" }}>
-        <div className="max-w-7xl mx-auto px-8">
+      {/* CTA */}
+      <section style={{ position: "relative", zIndex: 5, padding: "0 40px 80px" }}>
+        <div style={{ maxWidth: 1280, margin: "0 auto" }}>
           <div style={{
-            borderRadius: 28,
-            padding: "60px 60px",
-            background: "linear-gradient(135deg, rgba(0,255,136,0.08) 0%, rgba(0,229,255,0.05) 50%, rgba(168,85,247,0.08) 100%)",
-            border: "1px solid rgba(0,255,136,0.15)",
+            borderRadius: 32, padding: "64px",
+            background: "linear-gradient(135deg,rgba(0,255,136,0.07) 0%,rgba(0,229,255,0.04) 50%,rgba(168,85,247,0.07) 100%)",
+            border: "1px solid rgba(0,255,136,0.14)",
             backdropFilter: "blur(30px)",
-            textAlign: "center",
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: "0 0 80px rgba(0,255,136,0.05), inset 0 1px 0 rgba(255,255,255,0.06)",
+            textAlign: "center", position: "relative", overflow: "hidden",
+            boxShadow: "0 0 80px rgba(0,255,136,0.04), inset 0 1px 0 rgba(255,255,255,0.06)",
           }}>
             <div style={{
-              position: "absolute", top: -100, left: "50%", transform: "translateX(-50%)",
-              width: 400, height: 200,
-              background: "radial-gradient(ellipse, rgba(0,255,136,0.12) 0%, transparent 70%)",
-              filter: "blur(30px)",
+              position: "absolute", top: -80, left: "50%", transform: "translateX(-50%)",
+              width: 400, height: 160,
+              background: "radial-gradient(ellipse,rgba(0,255,136,0.1) 0%,transparent 70%)",
+              filter: "blur(20px)",
             }} />
             <h2 style={{
-              fontSize: 44, fontWeight: 900, letterSpacing: -1.5,
-              marginBottom: 16, position: "relative",
-              background: "linear-gradient(135deg, #fff 60%, rgba(255,255,255,0.7))",
-              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              fontSize: 46, fontWeight: 900, letterSpacing: -1.5, marginBottom: 14,
+              background: "linear-gradient(135deg,#fff 60%,rgba(255,255,255,0.65))",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", position: "relative",
             }}>Ready to trade smarter?</h2>
-            <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 17, marginBottom: 36, position: "relative" }}>
-              Join 850,000+ traders already using ATEX. No fees for the first 30 days.
+            <p style={{ color: "rgba(255,255,255,0.38)", fontSize: 17, marginBottom: 38, position: "relative" }}>
+              Join 850,000+ traders. No fees for the first 30 days.
             </p>
-            <button className="cta-btn" style={{
-              padding: "18px 48px", borderRadius: 14,
-              background: "linear-gradient(135deg, #00ff88, #00c866)",
-              border: "none",
-              color: "#050912",
-              fontSize: 18, fontWeight: 800, cursor: "pointer",
-              boxShadow: "0 0 40px rgba(0,255,136,0.35), 0 8px 32px rgba(0,0,0,0.4)",
+            <button className="btn-shine" style={{
+              padding: "18px 52px", borderRadius: 14,
+              background: "linear-gradient(135deg,#00ff88,#00c866)",
+              border: "none", color: "#050912",
+              fontSize: 18, fontWeight: 900, cursor: "pointer",
+              boxShadow: "0 0 40px rgba(0,255,136,0.38), 0 8px 32px rgba(0,0,0,0.4)",
               position: "relative",
-            }}>
-              Create Free Account →
-            </button>
+            }}>Create Free Account →</button>
           </div>
         </div>
       </section>
 
       {/* Footer */}
       <footer style={{
-        position: "relative", zIndex: 2,
+        position: "relative", zIndex: 5,
         borderTop: "1px solid rgba(255,255,255,0.05)",
-        padding: "28px 0",
-        background: "rgba(5,9,18,0.8)",
+        padding: "28px 40px",
+        background: "rgba(5,9,18,0.85)",
         backdropFilter: "blur(20px)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        maxWidth: "100%",
       }}>
-        <div className="max-w-7xl mx-auto px-8 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: "linear-gradient(135deg, #00ff88, #00e5ff)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 14, fontWeight: 900, color: "#050912",
-            }}>A</div>
-            <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 13 }}>© 2026 ATEX Exchange. All rights reserved.</span>
-          </div>
-          <div className="flex gap-6">
-            {["Privacy", "Terms", "Support", "API Docs"].map(l => (
-              <a key={l} href="#" style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>{l}</a>
-            ))}
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: "linear-gradient(135deg,#00ff88,#00e5ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900, color: "#050912" }}>A</div>
+          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>© 2026 ATEX Exchange</span>
+        </div>
+        <div style={{ display: "flex", gap: 24 }}>
+          {["Privacy", "Terms", "Support", "API Docs"].map(l => (
+            <a key={l} href="#" style={{ color: "rgba(255,255,255,0.28)", fontSize: 13, textDecoration: "none" }}>{l}</a>
+          ))}
         </div>
       </footer>
     </div>
