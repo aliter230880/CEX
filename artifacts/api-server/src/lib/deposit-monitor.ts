@@ -4,6 +4,7 @@ import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, cust
 import { logger } from "./logger";
 import {
   getProvider,
+  rotateProvider,
   getAssetConfig,
   formatAmount,
   SUPPORTED_DEPOSIT_ASSETS,
@@ -18,7 +19,7 @@ const ERC20_ABI = [
 const lastScannedBlock: Record<string, bigint> = {};
 
 async function scanNetwork(network: string) {
-  const provider = getProvider(network);
+  let provider = getProvider(network);
   let currentBlock: bigint;
   try {
     currentBlock = BigInt(await Promise.race([
@@ -61,7 +62,8 @@ async function scanNetwork(network: string) {
         await scanERC20Transfers(network, provider, fromBlock, toBlock, depositAddresses, addressSet, asset, config.contractAddress, config.decimals);
       }
     } catch (err) {
-      logger.warn({ err, network, asset }, "Error scanning asset");
+      logger.warn({ err, network, asset }, "Error scanning asset — rotating provider");
+      try { provider = rotateProvider(network); } catch { /* ignore */ }
     }
   }
 
@@ -79,7 +81,8 @@ async function scanNetwork(network: string) {
           token.symbol, token.contractAddress, token.decimals ?? 18,
         );
       } catch (err) {
-        logger.warn({ err, network, token: token.symbol }, "Error scanning custom token");
+        logger.warn({ err, network, token: token.symbol }, "Error scanning custom token — rotating provider");
+        try { provider = rotateProvider(network); } catch { /* ignore */ }
       }
     }
   }

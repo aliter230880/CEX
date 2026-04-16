@@ -3,19 +3,22 @@ import { ethers } from "ethers";
 // Public RPC providers - multiple URLs per network for fallback
 const RPC_URLS: Record<string, string[]> = {
   ETH: [
+    "https://rpc.ankr.com/eth",
+    "https://eth.llamarpc.com",
     "https://cloudflare-eth.com",
     "https://ethereum.publicnode.com",
-    "https://eth.llamarpc.com",
   ],
   BSC: [
+    "https://rpc.ankr.com/bsc",
     "https://bsc-dataseed.binance.org",
     "https://bsc-dataseed1.defibit.io",
     "https://bsc.publicnode.com",
   ],
   POLYGON: [
-    "https://polygon-bor-rpc.publicnode.com",
-    "https://polygon.llamarpc.com",
+    "https://rpc.ankr.com/polygon",
+    "https://polygon-mainnet.public.blastapi.io",
     "https://polygon-rpc.com",
+    "https://polygon.llamarpc.com",
   ],
 };
 

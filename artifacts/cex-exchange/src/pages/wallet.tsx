@@ -142,6 +142,15 @@ export default function Wallet() {
 
   const availableAssets = supportedAssets?.[withdrawNetwork] ?? [];
 
+  // Merge real balances with all supported tokens (show 0 for unlisted ones)
+  const allSupportedAssets = supportedAssets
+    ? [...new Set(Object.values(supportedAssets).flat())]
+    : [];
+  const mergedBalances = allSupportedAssets.map((asset) => {
+    const existing = balances?.find((b) => b.asset === asset);
+    return existing ?? { id: -1, asset, available: "0", locked: "0", network: "" };
+  });
+
   if (!user) {
     return (
       <div className="p-8 flex flex-col items-center justify-center min-h-[60vh] gap-4">
@@ -204,8 +213,10 @@ export default function Wallet() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {balances?.map((balance) => (
-                <TableRow key={balance.id}>
+              {mergedBalances
+                .sort((a, b) => (Number(b.available) + Number(b.locked)) - (Number(a.available) + Number(a.locked)))
+                .map((balance) => (
+                <TableRow key={balance.asset} className={Number(balance.available) + Number(balance.locked) === 0 ? "opacity-50" : ""}>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className="text-lg">{ASSET_ICONS[balance.asset] ?? "●"}</span>
@@ -223,10 +234,10 @@ export default function Wallet() {
                   </TableCell>
                 </TableRow>
               ))}
-              {!balances?.length && (
+              {mergedBalances.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    No balances yet. Make a deposit to get started.
+                    No assets available.
                   </TableCell>
                 </TableRow>
               )}
