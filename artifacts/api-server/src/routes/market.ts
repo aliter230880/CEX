@@ -24,7 +24,7 @@ router.get("/market/pairs", async (_req, res): Promise<void> => {
 
 router.get("/market/ticker/:pair", async (req, res): Promise<void> => {
   const rawPair = Array.isArray(req.params.pair) ? req.params.pair[0] : req.params.pair;
-  const pair = (rawPair ?? "").replace(/-/g, "/");
+  const pair = (rawPair ?? "").replace(/[-_]/g, "/");
   const ticker = await getTickerData(pair);
   res.json(ticker);
 });
@@ -37,7 +37,7 @@ router.get("/market/tickers", async (_req, res): Promise<void> => {
 
 router.get("/market/klines/:pair", async (req, res): Promise<void> => {
   const rawPair = Array.isArray(req.params.pair) ? req.params.pair[0] : req.params.pair;
-  const pair = (rawPair ?? "").replace(/-/g, "/");
+  const pair = (rawPair ?? "").replace(/[-_]/g, "/");
   const interval = (req.query.interval as string) ?? "1h";
   const limit = parseInt((req.query.limit as string) ?? "100", 10) || 100;
 
@@ -65,7 +65,7 @@ router.get("/market/klines/:pair", async (req, res): Promise<void> => {
 
 router.get("/market/recent-trades/:pair", async (req, res): Promise<void> => {
   const rawPair = Array.isArray(req.params.pair) ? req.params.pair[0] : req.params.pair;
-  const pair = (rawPair ?? "").replace(/-/g, "/");
+  const pair = (rawPair ?? "").replace(/[-_]/g, "/");
   const limit = parseInt((req.query.limit as string) ?? "30", 10) || 30;
 
   const trades = await db

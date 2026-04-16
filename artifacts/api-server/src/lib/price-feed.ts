@@ -2,236 +2,250 @@ import { db, klinesTable, tradingPairsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger";
 
-// Map our pairs to Binance symbols
-const BINANCE_MAP: Record<string, string> = {
-  "BTC/USDT": "BTCUSDT",
-  "ETH/USDT": "ETHUSDT",
-  "BNB/USDT": "BNBUSDT",
-  "POL/USDT": "POLUSDT",
-  "SOL/USDT": "SOLUSDT",
+// Map our pairs to CoinGecko coin IDs
+const COINGECKO_IDS: Record<string, string> = {
+  "BTC/USDT": "bitcoin",
+  "ETH/USDT": "ethereum",
+  "BNB/USDT": "binancecoin",
+  "POL/USDT": "matic-network",
+  "SOL/USDT": "solana",
 };
 
-// In-memory cache of latest real prices
-const REAL_PRICES: Record<string, number> = {};
+// In-memory cache of real prices and 24h stats
+interface PriceStats {
+  price: number;
+  change24h: number;
+  changePercent24h: number;
+  high24h: number;
+  low24h: number;
+  volume24h: number;
+}
+
+const PRICE_CACHE: Record<string, PriceStats> = {};
 
 export function getRealPrice(pair: string): number | null {
-  return REAL_PRICES[pair] ?? null;
+  return PRICE_CACHE[pair]?.price ?? null;
 }
 
-async function fetchBinanceTicker24h(symbols: string[]): Promise<Record<string, {
-  lastPrice: number;
-  priceChange: number;
-  priceChangePercent: number;
-  highPrice: number;
-  lowPrice: number;
-  volume: number;
-  quoteVolume: number;
-  openPrice: number;
-}>> {
-  const symbolsParam = encodeURIComponent(JSON.stringify(symbols));
-  const url = `https://api.binance.com/api/v3/ticker/24hr?symbols=${symbolsParam}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`Binance 24hr ticker error: ${res.status}`);
+export function getRealStats(pair: string): PriceStats | null {
+  return PRICE_CACHE[pair] ?? null;
+}
+
+async function fetchCoinGeckoMarkets(): Promise<void> {
+  const ids = Object.values(COINGECKO_IDS).join(",");
+  const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=10&sparkline=false&price_change_percentage=24h`;
+
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12000),
+  });
+
+  if (!res.ok) throw new Error(`CoinGecko markets error: ${res.status}`);
+
   const data = await res.json() as Array<{
-    symbol: string;
-    lastPrice: string;
-    priceChange: string;
-    priceChangePercent: string;
-    highPrice: string;
-    lowPrice: string;
-    volume: string;
-    quoteVolume: string;
-    openPrice: string;
+    id: string;
+    current_price: number;
+    price_change_24h: number;
+    price_change_percentage_24h: number;
+    high_24h: number;
+    low_24h: number;
+    total_volume: number;
   }>;
 
-  const result: Record<string, ReturnType<typeof fetchBinanceTicker24h> extends Promise<infer T> ? T[string] : never> = {};
-  for (const t of data) {
-    result[t.symbol] = {
-      lastPrice: parseFloat(t.lastPrice),
-      priceChange: parseFloat(t.priceChange),
-      priceChangePercent: parseFloat(t.priceChangePercent),
-      highPrice: parseFloat(t.highPrice),
-      lowPrice: parseFloat(t.lowPrice),
-      volume: parseFloat(t.volume),
-      quoteVolume: parseFloat(t.quoteVolume),
-      openPrice: parseFloat(t.openPrice),
+  // Build reverse map: coingecko id → pair
+  const idToPair: Record<string, string> = {};
+  for (const [pair, id] of Object.entries(COINGECKO_IDS)) {
+    idToPair[id] = pair;
+  }
+
+  for (const coin of data) {
+    const pair = idToPair[coin.id];
+    if (!pair) continue;
+    PRICE_CACHE[pair] = {
+      price: coin.current_price,
+      change24h: coin.price_change_24h ?? 0,
+      changePercent24h: coin.price_change_percentage_24h ?? 0,
+      high24h: coin.high_24h,
+      low24h: coin.low_24h,
+      volume24h: coin.total_volume,
     };
   }
-  return result;
+
+  logger.debug({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "Price cache updated from CoinGecko");
 }
 
-async function fetchBinanceKlines(
-  symbol: string,
-  interval: string,
-  limit: number = 100,
-): Promise<Array<{
+async function fetchCoinGeckoOhlc(coinId: string, days: number): Promise<Array<{
   openTime: number;
   closeTime: number;
-  open: string;
-  high: string;
-  low: string;
-  close: string;
-  volume: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
 }>> {
-  const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`Binance klines error: ${res.status}`);
-  const data = await res.json() as Array<[number, string, string, string, string, string, number]>;
-  return data.map(k => ({
-    openTime: k[0],
-    closeTime: k[6],
-    open: k[1],
-    high: k[2],
-    low: k[3],
-    close: k[4],
-    volume: k[5],
+  const url = `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(12000),
+  });
+
+  if (!res.ok) throw new Error(`CoinGecko OHLC error: ${res.status} for ${coinId}`);
+  const raw = await res.json() as Array<[number, number, number, number, number]>;
+
+  // CoinGecko returns [timestamp_ms, open, high, low, close]
+  return raw.map((c, i) => ({
+    openTime: c[0],
+    closeTime: raw[i + 1]?.[0] ?? c[0] + 3600_000,
+    open: c[1],
+    high: c[2],
+    low: c[3],
+    close: c[4],
   }));
 }
 
-const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"];
+// CoinGecko OHLC days → our interval mapping
+// days=1 → ~30min candles, days=7 → ~4h candles, days=30+ → daily
+// We'll map: 1d → "1h", 7d → "4h", 30d → "1d"
+const SYNC_PLAN: Array<{ days: number; interval: string }> = [
+  { days: 1, interval: "1h" },
+  { days: 7, interval: "4h" },
+  { days: 30, interval: "1d" },
+];
 
-async function syncKlinesForPair(pair: string, binanceSymbol: string): Promise<void> {
-  for (const interval of INTERVALS) {
+async function syncKlinesForPair(pair: string, coinId: string): Promise<void> {
+  for (const { days, interval } of SYNC_PLAN) {
     try {
-      const limit = interval === "1m" ? 200 : 100;
-      const klines = await fetchBinanceKlines(binanceSymbol, interval, limit);
+      const candles = await fetchCoinGeckoOhlc(coinId, days);
+      if (!candles.length) continue;
 
-      if (klines.length === 0) continue;
+      // Estimate interval duration
+      const intervalMs = candles.length > 1
+        ? candles[1]!.openTime - candles[0]!.openTime
+        : 3600_000;
 
-      const rows = klines.map(k => ({
+      const rows = candles.map(c => ({
         pair,
         interval,
-        openTime: k.openTime,
-        closeTime: k.closeTime,
-        open: parseFloat(k.open).toFixed(8),
-        high: parseFloat(k.high).toFixed(8),
-        low: parseFloat(k.low).toFixed(8),
-        close: parseFloat(k.close).toFixed(8),
-        volume: parseFloat(k.volume).toFixed(4),
+        openTime: c.openTime,
+        closeTime: c.openTime + intervalMs - 1,
+        open: c.open.toFixed(8),
+        high: c.high.toFixed(8),
+        low: c.low.toFixed(8),
+        close: c.close.toFixed(8),
+        volume: "0", // CoinGecko OHLC doesn't include volume in free tier
       }));
 
-      // Upsert: insert, on conflict update OHLCV
       for (const row of rows) {
-        await db
-          .insert(klinesTable)
-          .values(row)
-          .onConflictDoNothing();
+        await db.insert(klinesTable).values(row).onConflictDoNothing();
       }
 
-      // Update the latest candle (may have changed)
-      const latest = klines[klines.length - 1];
-      if (latest) {
-        await db
-          .update(klinesTable)
-          .set({
-            high: parseFloat(latest.high).toFixed(8),
-            low: parseFloat(latest.low).toFixed(8),
-            close: parseFloat(latest.close).toFixed(8),
-            volume: parseFloat(latest.volume).toFixed(4),
-          })
-          .where(
-            and(
-              eq(klinesTable.pair, pair),
-              eq(klinesTable.interval, interval),
-              eq(klinesTable.openTime, latest.openTime),
-            ),
-          );
-      }
+      // Update latest candle's close (it's the current live candle)
+      const latest = candles[candles.length - 1]!;
+      await db
+        .update(klinesTable)
+        .set({
+          high: latest.high.toFixed(8),
+          low: latest.low.toFixed(8),
+          close: latest.close.toFixed(8),
+        })
+        .where(
+          and(
+            eq(klinesTable.pair, pair),
+            eq(klinesTable.interval, interval),
+            eq(klinesTable.openTime, latest.openTime),
+          ),
+        );
+
+      // Small delay to respect rate limits
+      await new Promise(r => setTimeout(r, 1500));
     } catch (err) {
-      logger.warn({ pair, interval, err }, "Failed to sync klines interval");
+      logger.warn({ pair, interval, err }, "CoinGecko klines sync failed");
     }
   }
 }
 
-async function updatePriceCache(): Promise<void> {
-  const symbols = Object.values(BINANCE_MAP);
-  try {
-    const tickers = await fetchBinanceTicker24h(symbols);
-    for (const [pair, binanceSymbol] of Object.entries(BINANCE_MAP)) {
-      const t = tickers[binanceSymbol];
-      if (t) {
-        REAL_PRICES[pair] = t.lastPrice;
-      }
+async function updateLatestCandles(): Promise<void> {
+  for (const [pair, coinId] of Object.entries(COINGECKO_IDS)) {
+    try {
+      const candles = await fetchCoinGeckoOhlc(coinId, 1);
+      if (!candles.length) continue;
+
+      const latest = candles[candles.length - 1]!;
+      const intervalMs = candles.length > 1
+        ? candles[1]!.openTime - candles[0]!.openTime
+        : 3600_000;
+
+      await db
+        .insert(klinesTable)
+        .values({
+          pair,
+          interval: "1h",
+          openTime: latest.openTime,
+          closeTime: latest.openTime + intervalMs - 1,
+          open: latest.open.toFixed(8),
+          high: latest.high.toFixed(8),
+          low: latest.low.toFixed(8),
+          close: latest.close.toFixed(8),
+          volume: "0",
+        })
+        .onConflictDoNothing();
+
+      await db
+        .update(klinesTable)
+        .set({
+          high: latest.high.toFixed(8),
+          low: latest.low.toFixed(8),
+          close: latest.close.toFixed(8),
+        })
+        .where(
+          and(
+            eq(klinesTable.pair, pair),
+            eq(klinesTable.interval, "1h"),
+            eq(klinesTable.openTime, latest.openTime),
+          ),
+        );
+
+      await new Promise(r => setTimeout(r, 1200));
+    } catch (err) {
+      logger.warn({ pair, err }, "Failed to update latest candle");
     }
-    logger.debug({ prices: REAL_PRICES }, "Updated real price cache");
-  } catch (err) {
-    logger.warn({ err }, "Failed to update price cache from Binance");
   }
 }
 
 let feedInterval: NodeJS.Timeout | null = null;
 
 export async function startPriceFeed(): Promise<void> {
-  logger.info("Starting real-time price feed from Binance...");
+  logger.info("Starting price feed from CoinGecko...");
 
-  // Initial sync
+  // Load prices immediately
   try {
-    await updatePriceCache();
-    logger.info({ prices: REAL_PRICES }, "Initial price cache loaded");
+    await fetchCoinGeckoMarkets();
+    logger.info({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "CoinGecko prices loaded");
   } catch (err) {
-    logger.warn({ err }, "Initial price cache failed, will retry");
+    logger.warn({ err }, "Initial CoinGecko price fetch failed");
   }
 
-  // Sync klines for all pairs on startup (runs in background)
+  // Sync klines in background (runs once, takes a while due to rate limits)
   const pairs = await db.select().from(tradingPairsTable);
-  for (const p of pairs) {
-    const binanceSymbol = BINANCE_MAP[p.symbol];
-    if (!binanceSymbol) continue;
-    syncKlinesForPair(p.symbol, binanceSymbol)
-      .then(() => logger.info({ pair: p.symbol }, "Klines synced"))
-      .catch(err => logger.warn({ pair: p.symbol, err }, "Klines sync failed"));
-  }
-
-  // Poll every 60 seconds: update prices + latest kline
-  feedInterval = setInterval(async () => {
-    await updatePriceCache();
-
-    // Update latest 1m and 1h candles for each pair
-    for (const [pair, binanceSymbol] of Object.entries(BINANCE_MAP)) {
-      for (const interval of ["1m", "1h"]) {
-        try {
-          const klines = await fetchBinanceKlines(binanceSymbol, interval, 2);
-          if (!klines.length) continue;
-          const latest = klines[klines.length - 1]!;
-          // Try insert first, then update close/high/low
-          await db
-            .insert(klinesTable)
-            .values({
-              pair,
-              interval,
-              openTime: latest.openTime,
-              closeTime: latest.closeTime,
-              open: parseFloat(latest.open).toFixed(8),
-              high: parseFloat(latest.high).toFixed(8),
-              low: parseFloat(latest.low).toFixed(8),
-              close: parseFloat(latest.close).toFixed(8),
-              volume: parseFloat(latest.volume).toFixed(4),
-            })
-            .onConflictDoNothing();
-
-          await db
-            .update(klinesTable)
-            .set({
-              high: parseFloat(latest.high).toFixed(8),
-              low: parseFloat(latest.low).toFixed(8),
-              close: parseFloat(latest.close).toFixed(8),
-              volume: parseFloat(latest.volume).toFixed(4),
-            })
-            .where(
-              and(
-                eq(klinesTable.pair, pair),
-                eq(klinesTable.interval, interval),
-                eq(klinesTable.openTime, latest.openTime),
-              ),
-            );
-        } catch {
-          // silent — will retry next interval
-        }
-      }
+  (async () => {
+    for (const p of pairs) {
+      const coinId = COINGECKO_IDS[p.symbol];
+      if (!coinId) continue;
+      await syncKlinesForPair(p.symbol, coinId);
+      logger.info({ pair: p.symbol }, "Initial klines sync complete");
     }
+  })().catch(err => logger.warn({ err }, "Background klines sync error"));
+
+  // Poll every 60 seconds: update prices + latest candles
+  feedInterval = setInterval(async () => {
+    try {
+      await fetchCoinGeckoMarkets();
+    } catch (err) {
+      logger.warn({ err }, "CoinGecko price update failed");
+    }
+    await updateLatestCandles();
   }, 60_000);
 
-  logger.info("Price feed started — updating every 60 seconds");
+  logger.info("Price feed running — updating every 60s from CoinGecko");
 }
 
 export function stopPriceFeed(): void {

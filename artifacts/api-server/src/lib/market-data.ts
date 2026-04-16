@@ -1,7 +1,7 @@
 import { db, klinesTable, tradingPairsTable, tradesTable } from "@workspace/db";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { logger } from "./logger";
-import { getRealPrice } from "./price-feed";
+import { getRealPrice, getRealStats } from "./price-feed";
 
 // Fallback prices (used only if Binance feed not yet loaded)
 const FALLBACK_PRICES: Record<string, number> = {
@@ -77,32 +77,36 @@ export async function getTickerData(pair: string) {
     .where(and(eq(klinesTable.pair, pair), eq(klinesTable.interval, "1h"), gte(klinesTable.openTime, since24h)))
     .orderBy(desc(klinesTable.openTime));
 
+  // If no recent klines — use real-time stats from CoinGecko
   if (klines.length === 0) {
-    const price = getSeedPrice(pair);
+    const stats = getRealStats(pair);
+    const price = stats?.price ?? getSeedPrice(pair);
     return {
       pair,
       lastPrice: price.toFixed(8),
-      priceChange: "0",
-      priceChangePercent: "0",
-      highPrice: (price * 1.02).toFixed(8),
-      lowPrice: (price * 0.98).toFixed(8),
-      volume: "0",
-      quoteVolume: "0",
-      openPrice: price.toFixed(8),
+      priceChange: (stats?.change24h ?? 0).toFixed(8),
+      priceChangePercent: (stats?.changePercent24h ?? 0).toFixed(2),
+      highPrice: (stats?.high24h ?? price * 1.02).toFixed(8),
+      lowPrice: (stats?.low24h ?? price * 0.98).toFixed(8),
+      volume: (stats?.volume24h ?? 0).toFixed(4),
+      quoteVolume: (stats?.volume24h ?? 0).toFixed(2),
+      openPrice: (price - (stats?.change24h ?? 0)).toFixed(8),
       network: "ETH",
     };
   }
 
   const latest = klines[0]!;
   const oldest = klines[klines.length - 1]!;
-  const lastPrice = parseFloat(latest.close);
+  // Prefer real-time price over stale kline close
+  const realStats = getRealStats(pair);
+  const lastPrice = realStats?.price ?? parseFloat(latest.close);
   const openPrice = parseFloat(oldest.open);
-  const priceChange = lastPrice - openPrice;
-  const priceChangePercent = openPrice !== 0 ? (priceChange / openPrice) * 100 : 0;
-  const highPrice = Math.max(...klines.map((k) => parseFloat(k.high)));
-  const lowPrice = Math.min(...klines.map((k) => parseFloat(k.low)));
+  const priceChange = realStats?.change24h ?? (lastPrice - openPrice);
+  const priceChangePercent = realStats?.changePercent24h ?? (openPrice !== 0 ? (priceChange / openPrice) * 100 : 0);
+  const highPrice = realStats?.high24h ?? Math.max(...klines.map((k) => parseFloat(k.high)));
+  const lowPrice = realStats?.low24h ?? Math.min(...klines.map((k) => parseFloat(k.low)));
   const volume = klines.reduce((sum, k) => sum + parseFloat(k.volume), 0);
-  const quoteVolume = klines.reduce((sum, k) => sum + parseFloat(k.volume) * parseFloat(k.close), 0);
+  const quoteVolume = realStats?.volume24h ?? klines.reduce((sum, k) => sum + parseFloat(k.volume) * parseFloat(k.close), 0);
 
   return {
     pair,
