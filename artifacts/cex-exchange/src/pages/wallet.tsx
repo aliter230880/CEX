@@ -97,6 +97,24 @@ export default function Wallet() {
     staleTime: 60_000,
   });
 
+  // Fetch tickers to get real USD prices for each asset
+  const { data: tickers } = useQuery<{ symbol: string; lastPrice: string }[]>({
+    queryKey: ["wallet-tickers"],
+    queryFn: () => apiFetch<{ symbol: string; lastPrice: string }[]>("/api/market/tickers"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  // Build price map: asset → USD price. Stablecoins hardcoded to 1.
+  const priceMap = (() => {
+    const map: Record<string, number> = { USDT: 1, USDC: 1, BUSD: 1 };
+    for (const t of tickers ?? []) {
+      const [base] = t.symbol.split("-");
+      if (base) map[base] = parseFloat(t.lastPrice) || 0;
+    }
+    return map;
+  })();
+
   const { data: depositInfo, isLoading: depositLoading, error: depositError } = useQuery<DepositAddressResponse>({
     queryKey: ["deposit-address", depositNetwork],
     queryFn: () => apiFetch<DepositAddressResponse>(`/api/wallet/deposit-address/${depositNetwork}`),
@@ -144,7 +162,12 @@ export default function Wallet() {
     toast({ title: "Copied!", description: "Address copied to clipboard" });
   };
 
-  const totalValue = balances?.reduce((acc, b) => acc + Number(b.available) + Number(b.locked), 0) || 0;
+  // Total balance in USDT — only count assets with known prices
+  const totalValue = (balances ?? []).reduce((acc, b) => {
+    const price = priceMap[b.asset];
+    if (price === undefined || price === 0) return acc;
+    return acc + (Number(b.available) + Number(b.locked)) * price;
+  }, 0);
 
   const availableAssets = supportedAssets?.[withdrawNetwork] ?? [];
 
@@ -152,10 +175,19 @@ export default function Wallet() {
   const allSupportedAssets = supportedAssets
     ? [...new Set(Object.values(supportedAssets).flat())]
     : [];
-  const mergedBalances = allSupportedAssets.map((asset) => {
-    const existing = balances?.find((b) => b.asset === asset);
-    return existing ?? { id: -1, asset, available: "0", locked: "0", network: "" };
-  });
+  const mergedBalances = [
+    // Standard supported assets (show even with zero balance)
+    ...allSupportedAssets.map((asset) => {
+      const existing = balances?.find((b) => b.asset === asset);
+      return existing ?? { id: -1, asset, available: "0", locked: "0", network: "" };
+    }),
+    // Custom tokens with non-zero balance not already in the list above
+    ...(balances ?? []).filter(
+      (b) =>
+        !allSupportedAssets.includes(b.asset) &&
+        (Number(b.available) + Number(b.locked)) > 0,
+    ),
+  ];
 
   if (!user) {
     return (
