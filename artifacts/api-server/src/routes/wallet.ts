@@ -15,13 +15,21 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
+// Network name mapping: API uses uppercase ("POLYGON"), DB stores lowercase ("polygon")
+const NETWORK_TO_DB: Record<string, string> = {
+  ETH: "eth",
+  BSC: "bsc",
+  POLYGON: "polygon",
+};
+
 // Helper: get all supported assets for a network (built-in + custom tokens)
 async function getSupportedAssets(network: string): Promise<string[]> {
   const builtin = SUPPORTED_DEPOSIT_ASSETS[network] ?? [];
+  const dbNetwork = NETWORK_TO_DB[network] ?? network.toLowerCase();
   const custom = await db
     .select({ symbol: customTokensTable.symbol })
     .from(customTokensTable)
-    .where(and(eq(customTokensTable.network, network), eq(customTokensTable.status, "active")));
+    .where(and(eq(customTokensTable.network, dbNetwork), eq(customTokensTable.status, "active")));
   const customSymbols = custom.map(t => t.symbol).filter(s => !builtin.includes(s));
   return [...builtin, ...customSymbols];
 }

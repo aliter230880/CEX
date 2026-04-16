@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 
 // Public RPC providers - multiple URLs per network for fallback
+// BSC: avoid ankr as primary — it rate-limits eth_getLogs in batch mode
 const RPC_URLS: Record<string, string[]> = {
   ETH: [
     "https://rpc.ankr.com/eth",
@@ -9,16 +10,18 @@ const RPC_URLS: Record<string, string[]> = {
     "https://ethereum.publicnode.com",
   ],
   BSC: [
-    "https://rpc.ankr.com/bsc",
     "https://bsc-dataseed.binance.org",
     "https://bsc-dataseed1.defibit.io",
     "https://bsc.publicnode.com",
+    "https://bsc-dataseed2.binance.org",
+    "https://rpc.ankr.com/bsc",
   ],
   POLYGON: [
-    "https://rpc.ankr.com/polygon",
     "https://polygon-mainnet.public.blastapi.io",
-    "https://polygon-rpc.com",
     "https://polygon.llamarpc.com",
+    "https://polygon-rpc.com",
+    "https://rpc.ankr.com/polygon",
+    "https://polygon.publicnode.com",
   ],
 };
 
@@ -27,6 +30,20 @@ export const USDT_CONTRACTS: Record<string, string> = {
   ETH: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
   BSC: "0x55d398326f99059fF775485246999027B3197955",
   POLYGON: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+};
+
+// USDC contract addresses per network
+export const USDC_CONTRACTS: Record<string, string> = {
+  ETH: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  BSC: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+  POLYGON: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+};
+
+// USDC decimals differ per network
+export const USDC_DECIMALS: Record<string, number> = {
+  ETH: 6,
+  BSC: 18,
+  POLYGON: 6,
 };
 
 // Native coin per network
@@ -53,14 +70,15 @@ export function getRequiredConfirmations(network: string): number {
   return REQUIRED_CONFIRMATIONS[network] ?? 12;
 }
 
-// Keep one working provider per network
+// Track active provider and its index per network
 const activeProviders: Record<string, ethers.JsonRpcProvider> = {};
+const activeProviderIndex: Record<string, number> = {};
 
 export function getProvider(network: string): ethers.JsonRpcProvider {
   if (activeProviders[network]) return activeProviders[network];
   const urls = RPC_URLS[network];
   if (!urls || urls.length === 0) throw new Error(`Unsupported network: ${network}`);
-  // Start with first URL; deposit monitor will rotate if needed
+  activeProviderIndex[network] = 0;
   const provider = new ethers.JsonRpcProvider(urls[0], undefined, { polling: false });
   activeProviders[network] = provider;
   return provider;
@@ -69,10 +87,9 @@ export function getProvider(network: string): ethers.JsonRpcProvider {
 export function rotateProvider(network: string): ethers.JsonRpcProvider {
   const urls = RPC_URLS[network];
   if (!urls) throw new Error(`Unsupported network: ${network}`);
-  const current = activeProviders[network];
-  const currentUrl = current ? (current as { _getUrl?: () => string })._getUrl?.() : undefined;
-  const currentIndex = currentUrl ? urls.indexOf(currentUrl) : 0;
+  const currentIndex = activeProviderIndex[network] ?? 0;
   const nextIndex = (currentIndex + 1) % urls.length;
+  activeProviderIndex[network] = nextIndex;
   const provider = new ethers.JsonRpcProvider(urls[nextIndex], undefined, { polling: false });
   activeProviders[network] = provider;
   return provider;
@@ -161,11 +178,16 @@ export function getAssetConfig(asset: string, network: string): { isNative: bool
     if (!contractAddress) throw new Error(`USDT not supported on network ${network}`);
     return { isNative: false, contractAddress, decimals: 6 };
   }
+  if (asset === "USDC") {
+    const contractAddress = USDC_CONTRACTS[network];
+    if (!contractAddress) throw new Error(`USDC not supported on network ${network}`);
+    return { isNative: false, contractAddress, decimals: USDC_DECIMALS[network] ?? 6 };
+  }
   throw new Error(`Asset ${asset} not supported on network ${network}`);
 }
 
 export const SUPPORTED_DEPOSIT_ASSETS: Record<string, string[]> = {
-  ETH: ["ETH", "USDT"],
-  BSC: ["BNB", "USDT"],
-  POLYGON: ["POL", "USDT"],
+  ETH: ["ETH", "USDT", "USDC"],
+  BSC: ["BNB", "USDT", "USDC"],
+  POLYGON: ["POL", "USDT", "USDC"],
 };

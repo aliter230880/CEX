@@ -53,6 +53,9 @@ async function scanNetwork(network: string) {
   const addressSet = new Set(depositAddresses.map((d) => d.address.toLowerCase()));
   const assets = SUPPORTED_DEPOSIT_ASSETS[network] ?? [];
 
+  // Small delay helper to avoid rate limiting on batch RPC calls
+  const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
   for (const asset of assets) {
     try {
       const config = getAssetConfig(asset, network);
@@ -65,6 +68,7 @@ async function scanNetwork(network: string) {
       logger.warn({ err, network, asset }, "Error scanning asset — rotating provider");
       try { provider = rotateProvider(network); } catch { /* ignore */ }
     }
+    await delay(300); // avoid hammering the RPC with batch requests
   }
 
   // Also scan custom tokens on this network
@@ -84,6 +88,7 @@ async function scanNetwork(network: string) {
         logger.warn({ err, network, token: token.symbol }, "Error scanning custom token — rotating provider");
         try { provider = rotateProvider(network); } catch { /* ignore */ }
       }
+      await delay(300);
     }
   }
 
@@ -101,11 +106,11 @@ async function scanNativeTransfers(
 ) {
   // For native transfers we need to check each block (expensive), so use a lighter approach:
   // Check current on-chain balance vs last known balance
-  const currentBlock = toBlock;
+  // Use "latest" tag instead of specific block number to avoid "missing trie node" on non-archive nodes
 
   for (const da of depositAddresses) {
     try {
-      const balance = await provider.getBalance(da.address, currentBlock);
+      const balance = await provider.getBalance(da.address, "latest");
       if (balance === 0n) continue;
 
       // Check if we already have a confirmed deposit for this balance

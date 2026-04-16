@@ -35,6 +35,7 @@ const ASSET_ICONS: Record<string, string> = {
   BNB: "◈",
   POL: "◆",
   USDT: "₮",
+  USDC: "◎",
   BTC: "₿",
 };
 
