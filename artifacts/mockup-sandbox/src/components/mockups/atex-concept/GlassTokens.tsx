@@ -32,12 +32,22 @@ const BNB_PATH = [
   "M12,16  L16,12   L20,16  L16,20   Z",   // center diamond
 ].join(" ");
 
-// SOL: 3 parallelogram bars (official Solana proportions, 32×32 viewbox)
-const SOL_BARS = [
-  "M4.24,10.5  L24.43,10.5  L27.76,7    L7.57,7    Z",  // top bar
-  "M4.24,17    L24.43,17    L27.76,13.5 L7.57,13.5 Z",  // mid bar
-  "M4.24,23.5  L24.43,23.5  L27.76,20   L7.57,20   Z",  // bottom bar
-].join(" ");
+// SOL: 3 parallelogram bars — separate paths with individual gradients
+// Each bar is a proper parallelogram (both left & right edges diagonal)
+// Official Solana geometry: top shifts +3.5px right, bottom is horizontal reference
+const SOL_BAR_PATHS = [
+  "M5,9    L25,9    L28.5,5.5 L8.5,5.5  Z",  // top bar    (cyan)
+  "M5,17   L25,17   L28.5,13.5 L8.5,13.5 Z",  // mid bar    (cyan→purple)
+  "M5,25   L25,25   L28.5,21.5 L8.5,21.5 Z",  // bottom bar (purple→pink)
+];
+// Combined for clip/shadow usage
+const SOL_BARS = SOL_BAR_PATHS.join(" ");
+// Per-bar gradient stops: [from, to]
+const SOL_BAR_COLORS = [
+  ["#00F0C8", "#48D0B0"],  // top:    teal/cyan
+  ["#6AB8FF", "#9945FF"],  // mid:    cyan-blue to purple
+  ["#CC44FF", "#FF33AA"],  // bottom: purple to hot pink
+] as const;
 
 // ETH faces for 3D decomposition
 const ETH_TOP = "M16,4  L8,16  L16,20  L24,16  Z";
@@ -132,6 +142,7 @@ function GlassToken3D({
 
   /* ETH gets special facet treatment in variant A */
   const isETH = sym === "ETH";
+  const isSOL = sym === "SOL";
   const path = getPath(sym);
 
   /* Per-variant timing for bob/rock */
@@ -225,7 +236,27 @@ function GlassToken3D({
               <filter id={`${id}-f-soft`}><feGaussianBlur stdDeviation="0.35"/></filter>
               <filter id={`${id}-f-liquid`}><feGaussianBlur stdDeviation="0.5"/></filter>
 
-              {/* ClipPath for liquid */}
+              {/* SOL: per-bar gradients (diagonal, matching the logo gradient direction) */}
+              {isSOL && SOL_BAR_COLORS.map(([from, to], i) => (
+                <linearGradient key={i} id={`${id}-sol-bar-${i}`} x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%"   stopColor={from} stopOpacity="0.95"/>
+                  <stop offset="100%" stopColor={to}   stopOpacity="0.85"/>
+                </linearGradient>
+              ))}
+              {isSOL && SOL_BAR_COLORS.map(([from, to], i) => (
+                <radialGradient key={i} id={`${id}-sol-hi-${i}`} cx="30%" cy="30%" r="55%">
+                  <stop offset="0%"   stopColor="white" stopOpacity="0.6"/>
+                  <stop offset="60%"  stopColor={from}  stopOpacity="0.2"/>
+                  <stop offset="100%" stopColor="transparent" stopOpacity="0"/>
+                </radialGradient>
+              ))}
+              {isSOL && SOL_BAR_PATHS.map((_, i) => (
+                <clipPath key={i} id={`${id}-sol-clip-${i}`}>
+                  <path d={SOL_BAR_PATHS[i]}/>
+                </clipPath>
+              ))}
+
+              {/* ClipPath for liquid (whole shape) */}
               <clipPath id={`${id}-clip`}><path d={path}/></clipPath>
               {isETH && (
                 <clipPath id={`${id}-clip-eth`}>
@@ -239,8 +270,8 @@ function GlassToken3D({
               <path d={path} fill={mid} transform="scale(1.06) translate(-0.96,-0.96)"/>
             </g>
 
-            {/* ── 2. Extrusion depth stack (thickness) ── */}
-            {[4, 3, 2, 1].map(d => (
+            {/* ── 2. Extrusion depth stack (thickness, skip SOL — handled per-bar) ── */}
+            {!isSOL && [4, 3, 2, 1].map(d => (
               <path key={d} d={path}
                 fill={lo} opacity={0.28 - d * 0.05}
                 transform={`translate(${d * 0.75}, ${d * 1.0})`}
@@ -248,17 +279,49 @@ function GlassToken3D({
               />
             ))}
 
-            {/* ── 3. LIQUID FILL (inside clip) ── */}
-            <g clipPath={`url(#${id}-clip)`}
-              style={{ animation: `${id}-liqrock ${liqSpeed}s ease-in-out infinite` }}>
-              <LiquidFill id={`${id}-liq`} color={liq} hi={hi} />
-            </g>
+            {/* ── 3. LIQUID FILL (inside clip, skip SOL — handled per-bar) ── */}
+            {!isSOL && (
+              <g clipPath={`url(#${id}-clip)`}
+                style={{ animation: `${id}-liqrock ${liqSpeed}s ease-in-out infinite` }}>
+                <LiquidFill id={`${id}-liq`} color={liq} hi={hi} />
+              </g>
+            )}
 
             {/* ── 4. Main glass body ── */}
-            <path d={path} fill={`url(#${id}-g-main)`} opacity="0.78"/>
+            {isSOL ? (
+              /* SOL: render each bar separately with its own gradient + glass highlight */
+              <g>
+                {SOL_BAR_PATHS.map((barPath, i) => (
+                  <g key={i}>
+                    {/* Extrusion depth for this bar */}
+                    {[3,2,1].map(d => (
+                      <path key={d} d={barPath} fill="#1a0050"
+                        opacity={0.22 - d*0.04}
+                        transform={`translate(${d*0.65},${d*0.9})`}/>
+                    ))}
+                    {/* Bar body */}
+                    <path d={barPath} fill={`url(#${id}-sol-bar-${i})`} opacity="0.92"/>
+                    {/* Glass highlight */}
+                    <path d={barPath} fill={`url(#${id}-sol-hi-${i})`}/>
+                    {/* Rim */}
+                    <path d={barPath} fill="none" stroke="white" strokeWidth="0.25" opacity="0.55"/>
+                    {/* Liquid inside each bar */}
+                    <g clipPath={`url(#${id}-sol-clip-${i})`}
+                       style={{ animation: `${id}-liqrock ${7 + i}s ease-in-out infinite`, animationDelay: `${-i*2}s` }}>
+                      <LiquidFill id={`${id}-liq-sol-${i}`} color={SOL_BAR_COLORS[i][0] + "99"} hi={SOL_BAR_COLORS[i][1]}/>
+                    </g>
+                    {/* Chromatic aberration per bar */}
+                    <path d={barPath} fill="none" stroke="rgba(255,80,80,0.12)" strokeWidth="1.0" transform="translate(-0.3,0)"/>
+                    <path d={barPath} fill="none" stroke="rgba(80,80,255,0.1)"  strokeWidth="1.0" transform="translate(0.3,0)"/>
+                  </g>
+                ))}
+              </g>
+            ) : (
+              <path d={path} fill={`url(#${id}-g-main)`} opacity="0.78"/>
+            )}
 
             {/* ── 5. Glass tint (variant-specific) ── */}
-            <path d={path} fill={`url(#${id}-g-tint)`} opacity="0.55"/>
+            {!isSOL && <path d={path} fill={`url(#${id}-g-tint)`} opacity="0.55"/>}
 
             {/* ── 6. ETH special: 3D face decomposition ── */}
             {isETH && (
