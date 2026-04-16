@@ -5,6 +5,7 @@ import { useGetTradingPairs, useGetTicker, getGetTickerQueryKey } from "@workspa
 import { ArrowRight, TrendingUp, TrendingDown } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useFlashOnChange } from "@/hooks/use-flash-on-change";
+import { ETHGlass, BTCGlass, BNBGlass, SOLGlass, POLGlass } from "@/components/GlassToken3D";
 
 /* ── Token SVG icons (inline, no external deps) ──────────────────── */
 const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
@@ -75,55 +76,31 @@ function ParticleCanvas() {
   return <canvas ref={canvasRef} style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }} />;
 }
 
-/* ── Floating 3D token card (decorative) ───────────────────────────── */
-const FLOAT_TOKENS = [
-  { id: "btc", sym: "BTC", w: 130, x: "3%",  y: "16%", delay: 0,   dur: 10, rx: 12,  ry: -18, rz: -6 },
-  { id: "eth", sym: "ETH", w: 120, x: "83%", y: "10%", delay: 1.5, dur: 12, rx: -10, ry: 20,  rz: 8  },
-  { id: "bnb", sym: "BNB", w: 110, x: "80%", y: "55%", delay: 0.8, dur: 9,  rx: 8,   ry: -22, rz: -4 },
-  { id: "sol", sym: "SOL", w: 118, x: "1%",  y: "60%", delay: 2.2, dur: 14, rx: -14, ry: 16,  rz: 10 },
-  { id: "pol", sym: "POL", w: 100, x: "61%", y: "80%", delay: 0.4, dur: 11, rx: 10,  ry: -14, rz: 5  },
-];
-
-function FloatCard({ t }: { t: typeof FLOAT_TOKENS[0] }) {
-  const info = TOKEN_SVGS[t.sym];
-  if (!info) return null;
-  const h = Math.round(t.w * 1.14);
+/* ── Floating 3D glass tokens (decorative) ──────────────────────────── */
+function FloatingGlassTokens() {
   return (
-    <div style={{ position: "absolute", left: t.x, top: t.y, width: t.w, zIndex: 3, perspective: 600, pointerEvents: "none" }}>
-      <style>{`
-        @keyframes bob-${t.id} { 0%,100%{transform:translateY(0)} 35%{transform:translateY(-18px)} 70%{transform:translateY(-8px)} }
-        @keyframes tilt-${t.id} {
-          0%  {transform:rotateX(${t.rx}deg) rotateY(${t.ry}deg) rotateZ(${t.rz}deg)}
-          25% {transform:rotateX(${t.rx-4}deg) rotateY(${t.ry+8}deg) rotateZ(${t.rz+2}deg)}
-          50% {transform:rotateX(${t.rx+6}deg) rotateY(${t.ry-6}deg) rotateZ(${t.rz-3}deg)}
-          75% {transform:rotateX(${t.rx-2}deg) rotateY(${t.ry+10}deg) rotateZ(${t.rz+4}deg)}
-          100%{transform:rotateX(${t.rx}deg) rotateY(${t.ry}deg) rotateZ(${t.rz}deg)}
-        }
-      `}</style>
-      <div style={{ animation: `bob-${t.id} ${t.dur}s ease-in-out infinite`, animationDelay: `${t.delay}s` }}>
-        <div style={{ width: "100%", height: h, transformStyle: "preserve-3d", animation: `tilt-${t.id} ${t.dur * 1.4}s ease-in-out infinite`, animationDelay: `${t.delay * 0.5}s` }}>
-          <div style={{
-            position: "absolute", inset: 0, borderRadius: 20,
-            background: "rgba(255,255,255,0.025)",
-            backdropFilter: "blur(24px)",
-            border: `1px solid rgba(255,255,255,0.1)`,
-            boxShadow: `0 28px 56px rgba(0,0,0,0.55), 0 0 32px ${info.glow}16, inset 0 1px 0 rgba(255,255,255,0.18), inset 0 -1px 0 rgba(0,0,0,0.25)`,
-            display: "flex", flexDirection: "column", padding: "12px 12px 10px",
-            overflow: "hidden",
-          }}>
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: "rgba(255,255,255,0.4)", marginBottom: 10, textTransform: "uppercase" }}>{t.sym}</div>
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
-              <div style={{ position: "absolute", width: 68, height: 68, borderRadius: "50%", border: `1.5px solid ${info.glow}55`, boxShadow: `0 0 18px ${info.glow}45, 0 0 36px ${info.glow}18` }} />
-              <div style={{ position: "absolute", width: 52, height: 52, borderRadius: "50%", border: `1px solid ${info.glow}30` }} />
-              <div dangerouslySetInnerHTML={{ __html: info.svg }} style={{ width: 40, height: 40, filter: `drop-shadow(0 0 8px ${info.glow}dd)` }} />
-            </div>
-            <div style={{ position: "absolute", top: 0, left: "10%", right: "10%", height: "40%", borderRadius: "0 0 50% 50%", background: "linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent 100%)", pointerEvents: "none" }} />
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "35%", borderRadius: "0 0 20px 20px", background: `linear-gradient(0deg,${info.glow}10 0%,transparent 100%)`, pointerEvents: "none" }} />
-          </div>
-        </div>
-        <div style={{ position: "absolute", bottom: -16, left: "20%", right: "20%", height: 16, background: `radial-gradient(ellipse,${info.glow}22 0%,transparent 80%)`, filter: "blur(6px)" }} />
+    <>
+      {/* BTC — left, upper */}
+      <div style={{ position: "absolute", left: "2%", top: "14%", pointerEvents: "none", zIndex: 3 }}>
+        <BTCGlass size={170} delay={0}/>
       </div>
-    </div>
+      {/* ETH — right, upper */}
+      <div style={{ position: "absolute", right: "3%", top: "8%", pointerEvents: "none", zIndex: 3 }}>
+        <ETHGlass size={160} delay={1.5}/>
+      </div>
+      {/* BNB — right, lower-mid */}
+      <div style={{ position: "absolute", right: "4%", top: "52%", pointerEvents: "none", zIndex: 3 }}>
+        <BNBGlass size={155} delay={0.8}/>
+      </div>
+      {/* SOL — left, lower-mid */}
+      <div style={{ position: "absolute", left: "1%", top: "58%", pointerEvents: "none", zIndex: 3 }}>
+        <SOLGlass size={165} delay={2.2}/>
+      </div>
+      {/* POL — center-right, bottom */}
+      <div style={{ position: "absolute", left: "62%", top: "78%", pointerEvents: "none", zIndex: 3 }}>
+        <POLGlass size={148} delay={0.4}/>
+      </div>
+    </>
   );
 }
 
@@ -238,9 +215,9 @@ export default function Landing() {
         <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "linear-gradient(90deg,transparent 0%,rgba(0,255,136,.1) 30%,rgba(0,255,136,.22) 50%,rgba(0,255,136,.1) 70%,transparent 100%)", animation: "scanLine 12s linear infinite" }} />
       </div>
 
-      {/* ── Floating 3D token cards ── */}
-      <div style={{ position: "fixed", inset: 0, zIndex: 2, pointerEvents: "none" }}>
-        {FLOAT_TOKENS.map(t => <FloatCard key={t.id} t={t} />)}
+      {/* ── Floating 3D glass tokens ── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 2, pointerEvents: "none", overflow: "hidden" }}>
+        <FloatingGlassTokens/>
       </div>
 
       {/* ── Navbar ── */}
