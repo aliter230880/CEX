@@ -7,3 +7,6 @@ export * from "./klines";
 export * from "./deposit_addresses";
 export * from "./crypto_transactions";
 export * from "./admin_audit_log";
+export * from "./fee_config";
+export * from "./referral_config";
+export * from "./custom_tokens";

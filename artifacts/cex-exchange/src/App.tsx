@@ -19,6 +19,11 @@ import AdminDashboard from "@/pages/admin/index";
 import AdminUsers from "@/pages/admin/users";
 import AdminUserDetail from "@/pages/admin/user-detail";
 import AdminAuditLog from "@/pages/admin/audit-log";
+import AdminTradingPairs from "@/pages/admin/trading-pairs";
+import AdminTokens from "@/pages/admin/tokens";
+import AdminFees from "@/pages/admin/fees";
+import AdminReferrals from "@/pages/admin/referrals";
+import AdminTransactions from "@/pages/admin/transactions";
 
 const queryClient = new QueryClient();
 
@@ -41,9 +46,22 @@ function Router() {
         </AdminProtectedRoute>
       </Route>
       <Route path="/admin/audit-log">
-        <AdminProtectedRoute>
-          <AdminAuditLog />
-        </AdminProtectedRoute>
+        <AdminProtectedRoute><AdminAuditLog /></AdminProtectedRoute>
+      </Route>
+      <Route path="/admin/trading-pairs">
+        <AdminProtectedRoute><AdminTradingPairs /></AdminProtectedRoute>
+      </Route>
+      <Route path="/admin/tokens">
+        <AdminProtectedRoute><AdminTokens /></AdminProtectedRoute>
+      </Route>
+      <Route path="/admin/fees">
+        <AdminProtectedRoute><AdminFees /></AdminProtectedRoute>
+      </Route>
+      <Route path="/admin/referrals">
+        <AdminProtectedRoute><AdminReferrals /></AdminProtectedRoute>
+      </Route>
+      <Route path="/admin/transactions">
+        <AdminProtectedRoute><AdminTransactions /></AdminProtectedRoute>
       </Route>
       <Route path="/admin">
         <AdminProtectedRoute>

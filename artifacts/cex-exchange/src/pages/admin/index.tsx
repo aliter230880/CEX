@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock } from "lucide-react";
+import { Users, UserX, Activity, LogOut, Shield, ArrowRight, Clock, TrendingUp, Coins, Percent, Gift, ArrowDownCircle } from "lucide-react";
 
 type Stats = {
   totalUsers: number;
@@ -156,29 +156,28 @@ export default function AdminDashboard() {
           </div>
 
           {/* Quick navigation */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Link href="/admin/users">
-              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
-                <CardContent className="flex items-center justify-between p-5">
-                  <div>
-                    <div className="font-semibold mb-1 flex items-center gap-2"><Users className="w-4 h-4" /> User Management</div>
-                    <p className="text-sm text-muted-foreground">View, freeze/unfreeze accounts, adjust balances, access escrow keys</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/admin/audit-log">
-              <Card className="cursor-pointer hover:border-primary/50 transition-colors">
-                <CardContent className="flex items-center justify-between p-5">
-                  <div>
-                    <div className="font-semibold mb-1 flex items-center gap-2"><Activity className="w-4 h-4" /> Audit Log</div>
-                    <p className="text-sm text-muted-foreground">Full history of all admin actions for compliance and accountability</p>
-                  </div>
-                  <ArrowRight className="w-5 h-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            </Link>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[
+              { href: "/admin/users", icon: <Users className="w-4 h-4" />, title: "User Management", desc: "View, freeze/unfreeze accounts, adjust balances, access escrow keys" },
+              { href: "/admin/transactions", icon: <ArrowDownCircle className="w-4 h-4 text-emerald-400" />, title: "Transaction Monitor", desc: "Real-time deposit & withdrawal monitoring with filters" },
+              { href: "/admin/trading-pairs", icon: <TrendingUp className="w-4 h-4 text-blue-400" />, title: "Trading Pairs", desc: "Add new pairs, enable or disable existing ones" },
+              { href: "/admin/tokens", icon: <Coins className="w-4 h-4 text-yellow-400" />, title: "Token Listing", desc: "List custom ERC-20/BEP-20 tokens, delist if needed" },
+              { href: "/admin/fees", icon: <Percent className="w-4 h-4 text-orange-400" />, title: "Fee Configuration", desc: "Set maker/taker trading fees and withdrawal fees per asset" },
+              { href: "/admin/referrals", icon: <Gift className="w-4 h-4 text-purple-400" />, title: "Referral Program", desc: "Enable referrals, set reward type and value" },
+              { href: "/admin/audit-log", icon: <Activity className="w-4 h-4" />, title: "Audit Log", desc: "Full history of all admin actions for compliance" },
+            ].map(({ href, icon, title, desc }) => (
+              <Link key={href} href={href}>
+                <Card className="cursor-pointer hover:border-primary/50 transition-colors h-full">
+                  <CardContent className="flex items-center justify-between p-5">
+                    <div>
+                      <div className="font-semibold mb-1 flex items-center gap-2">{icon} {title}</div>
+                      <p className="text-sm text-muted-foreground">{desc}</p>
+                    </div>
+                    <ArrowRight className="w-5 h-5 text-muted-foreground flex-shrink-0 ml-2" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
           </div>
         </>
       )}

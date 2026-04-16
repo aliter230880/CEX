@@ -11,6 +11,10 @@ import {
   cryptoTransactionsTable,
   depositAddressesTable,
   adminAuditLogTable,
+  tradingPairsTable,
+  feeConfigTable,
+  referralConfigTable,
+  customTokensTable,
 } from "@workspace/db";
 import { requireAdmin } from "../lib/session";
 import {
@@ -465,4 +469,233 @@ router.get("/admin/audit-log", adminGuard, async (req: Request, res: Response): 
   });
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TRADING PAIRS MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/trading-pairs
+router.get("/admin/trading-pairs", adminGuard, async (_req: Request, res: Response): Promise<void> => {
+  const pairs = await db.select().from(tradingPairsTable).orderBy(tradingPairsTable.symbol);
+  res.json({ pairs });
+});
+
+// POST /api/admin/trading-pairs
+router.post("/admin/trading-pairs", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const { symbol, baseAsset, quoteAsset, network, minOrderSize, tickSize, stepSize } = req.body as {
+    symbol: string; baseAsset: string; quoteAsset: string; network: string;
+    minOrderSize?: string; tickSize?: string; stepSize?: string;
+  };
+  if (!symbol || !baseAsset || !quoteAsset || !network) {
+    res.status(400).json({ error: "validation_error", message: "symbol, baseAsset, quoteAsset, network required" });
+    return;
+  }
+  const [pair] = await db.insert(tradingPairsTable).values({
+    symbol: symbol.toUpperCase(),
+    baseAsset: baseAsset.toUpperCase(),
+    quoteAsset: quoteAsset.toUpperCase(),
+    network,
+    minOrderSize: minOrderSize ?? "0.00001",
+    tickSize: tickSize ?? "0.01",
+    stepSize: stepSize ?? "0.00001",
+    status: "active",
+  }).returning();
+  await audit("trading_pair_add", null, { symbol, network });
+  res.json({ success: true, pair });
+});
+
+// PATCH /api/admin/trading-pairs/:id
+router.patch("/admin/trading-pairs/:id", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { status } = req.body as { status: string };
+  if (!["active", "inactive"].includes(status)) {
+    res.status(400).json({ error: "validation_error", message: "status must be active or inactive" });
+    return;
+  }
+  await db.update(tradingPairsTable).set({ status }).where(eq(tradingPairsTable.id, id));
+  await audit("trading_pair_update", null, { id, status });
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CUSTOM TOKENS
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/tokens
+router.get("/admin/tokens", adminGuard, async (_req: Request, res: Response): Promise<void> => {
+  const tokens = await db.select().from(customTokensTable).orderBy(desc(customTokensTable.createdAt));
+  res.json({ tokens });
+});
+
+// POST /api/admin/tokens
+router.post("/admin/tokens", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const { symbol, name, network, contractAddress, decimals, iconUrl } = req.body as {
+    symbol: string; name: string; network: string; contractAddress: string;
+    decimals?: number; iconUrl?: string;
+  };
+  if (!symbol || !name || !network || !contractAddress) {
+    res.status(400).json({ error: "validation_error", message: "symbol, name, network, contractAddress required" });
+    return;
+  }
+  const [token] = await db.insert(customTokensTable).values({
+    symbol: symbol.toUpperCase(),
+    name,
+    network,
+    contractAddress,
+    decimals: decimals ?? 18,
+    iconUrl: iconUrl ?? null,
+    status: "active",
+  }).returning();
+  await audit("token_listing_add", null, { symbol, network, contractAddress });
+  res.json({ success: true, token });
+});
+
+// PATCH /api/admin/tokens/:id
+router.patch("/admin/tokens/:id", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id as string);
+  const { status } = req.body as { status: string };
+  if (!["active", "delisted"].includes(status)) {
+    res.status(400).json({ error: "validation_error", message: "status must be active or delisted" });
+    return;
+  }
+  await db.update(customTokensTable).set({ status }).where(eq(customTokensTable.id, id));
+  await audit("token_listing_update", null, { id, status });
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FEE CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/fees
+router.get("/admin/fees", adminGuard, async (_req: Request, res: Response): Promise<void> => {
+  const fees = await db.select().from(feeConfigTable).orderBy(feeConfigTable.asset);
+  res.json({ fees });
+});
+
+// PUT /api/admin/fees/:asset
+router.put("/admin/fees/:asset", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const asset = (req.params.asset as string).toUpperCase();
+  const { makerFee, takerFee, withdrawalFee } = req.body as {
+    makerFee?: string; takerFee?: string; withdrawalFee?: string;
+  };
+  const existing = await db.select().from(feeConfigTable).where(eq(feeConfigTable.asset, asset));
+  if (existing.length > 0) {
+    await db.update(feeConfigTable).set({
+      ...(makerFee !== undefined ? { makerFee } : {}),
+      ...(takerFee !== undefined ? { takerFee } : {}),
+      ...(withdrawalFee !== undefined ? { withdrawalFee } : {}),
+      updatedAt: new Date(),
+    }).where(eq(feeConfigTable.asset, asset));
+  } else {
+    await db.insert(feeConfigTable).values({
+      asset,
+      makerFee: makerFee ?? "0.001",
+      takerFee: takerFee ?? "0.001",
+      withdrawalFee: withdrawalFee ?? "0",
+    });
+  }
+  await audit("fee_config_update", null, { asset, makerFee, takerFee, withdrawalFee });
+  res.json({ success: true });
+});
+
+// DELETE /api/admin/fees/:asset
+router.delete("/admin/fees/:asset", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const asset = (req.params.asset as string).toUpperCase();
+  await db.delete(feeConfigTable).where(eq(feeConfigTable.asset, asset));
+  await audit("fee_config_delete", null, { asset });
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REFERRAL CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/referrals
+router.get("/admin/referrals", adminGuard, async (_req: Request, res: Response): Promise<void> => {
+  const [config] = await db.select().from(referralConfigTable).limit(1);
+  res.json({ config: config ?? null });
+});
+
+// PUT /api/admin/referrals
+router.put("/admin/referrals", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const { enabled, rewardType, rewardValue, minTradeVolume } = req.body as {
+    enabled?: boolean; rewardType?: string; rewardValue?: string; minTradeVolume?: string;
+  };
+  const existing = await db.select().from(referralConfigTable).limit(1);
+  if (existing.length > 0) {
+    await db.update(referralConfigTable).set({
+      ...(enabled !== undefined ? { enabled } : {}),
+      ...(rewardType ? { rewardType } : {}),
+      ...(rewardValue !== undefined ? { rewardValue } : {}),
+      ...(minTradeVolume !== undefined ? { minTradeVolume } : {}),
+      updatedAt: new Date(),
+    }).where(eq(referralConfigTable.id, existing[0].id));
+  } else {
+    await db.insert(referralConfigTable).values({
+      enabled: enabled ?? false,
+      rewardType: rewardType ?? "percentage",
+      rewardValue: rewardValue ?? "10",
+      minTradeVolume: minTradeVolume ?? "0",
+    });
+  }
+  await audit("referral_config_update", null, { enabled, rewardType, rewardValue, minTradeVolume });
+  res.json({ success: true });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSACTION MONITORING
+// ─────────────────────────────────────────────────────────────────────────────
+
+// GET /api/admin/transactions
+router.get("/admin/transactions", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const page = Math.max(1, parseInt((req.query["page"] as string) ?? "1"));
+  const limit = 50;
+  const offset = (page - 1) * limit;
+  const type = (req.query["type"] as string) ?? "";
+  const status = (req.query["status"] as string) ?? "";
+  const asset = (req.query["asset"] as string) ?? "";
+
+  const conditions = [];
+  if (type) conditions.push(eq(cryptoTransactionsTable.type, type));
+  if (status) conditions.push(eq(cryptoTransactionsTable.status, status));
+  if (asset) conditions.push(eq(cryptoTransactionsTable.asset, asset.toUpperCase()));
+
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const [{ total }] = await db
+    .select({ total: sql<number>`count(*)::int` })
+    .from(cryptoTransactionsTable)
+    .where(where);
+
+  const txs = await db
+    .select({
+      id: cryptoTransactionsTable.id,
+      userId: cryptoTransactionsTable.userId,
+      type: cryptoTransactionsTable.type,
+      asset: cryptoTransactionsTable.asset,
+      network: cryptoTransactionsTable.network,
+      amount: cryptoTransactionsTable.amount,
+      txHash: cryptoTransactionsTable.txHash,
+      status: cryptoTransactionsTable.status,
+      fromAddress: cryptoTransactionsTable.fromAddress,
+      toAddress: cryptoTransactionsTable.toAddress,
+      confirmations: cryptoTransactionsTable.confirmations,
+      createdAt: cryptoTransactionsTable.createdAt,
+      userEmail: usersTable.email,
+      username: usersTable.username,
+    })
+    .from(cryptoTransactionsTable)
+    .leftJoin(usersTable, eq(cryptoTransactionsTable.userId, usersTable.id))
+    .where(where)
+    .orderBy(desc(cryptoTransactionsTable.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  res.json({
+    transactions: txs,
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  });
+});
+
 export default router;
+
