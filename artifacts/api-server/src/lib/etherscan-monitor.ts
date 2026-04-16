@@ -2,13 +2,14 @@
  * Etherscan-based deposit monitor.
  *
  * Strategy:
- *   ETH    (chainid=1)   — Etherscan V2 API (free key covers ETH)
- *   POLYGON (chainid=137) — Etherscan V2 API (free key covers Polygon)
- *   BSC    (chainid=56)  — fallback to RPC getLogs (bscscan requires paid plan)
+ *   ETH    (chainid=1)   — Etherscan V2 API (free key ETHERSCAN_API_KEY)
+ *   POLYGON (chainid=137) — Etherscan V2 API (free key ETHERSCAN_API_KEY)
+ *   BSC    (chainid=56)  — BscScan API (free key BSCSCAN_API_KEY) if set,
+ *                          otherwise skipped (public RPCs rate-limit getLogs)
  *
- * Etherscan `tokentx` and `txlist` endpoints return ALL historical transactions
- * for a given address — no block-range issues, no getLogs prune errors.
- * Rate limit on free plan: 5 calls/sec, but we poll every 30s so no issue.
+ * Etherscan/BscScan `tokentx` and `txlist` endpoints return ALL historical
+ * transactions for a given address — no block-range issues, no getLogs prune errors.
+ * Rate limit on free plan: 5 calls/sec; we poll every 60s so it's fine.
  *
  * For native coins (ETH, POL, BNB) we use `txlist` filtered to incoming.
  */
@@ -20,46 +21,60 @@ import { logger } from "./logger";
 import { getRequiredConfirmations } from "./blockchain";
 
 const ETHERSCAN_BASE = "https://api.etherscan.io/v2/api";
+const BSCSCAN_BASE   = "https://api.bscscan.com/api";
 
-// Networks supported by the free Etherscan V2 API key
+// Networks + their Etherscan V2 chain IDs (ETHERSCAN_API_KEY covers both)
 const ETHERSCAN_CHAIN_IDS: Record<string, number> = {
   ETH:     1,
   POLYGON: 137,
 };
 
-// Native asset symbol per network
+// Native asset symbol per network (all networks including BSC)
 const NATIVE_ASSET: Record<string, string> = {
   ETH:     "ETH",
   POLYGON: "POL",
+  BSC:     "BNB",
 };
 
 // Track last processed block per network to avoid re-processing
 const lastProcessedBlock: Record<string, number> = {};
 
-async function etherscanFetch(chainId: number, params: Record<string, string>): Promise<unknown[]> {
-  const apiKey = process.env.ETHERSCAN_API_KEY;
-  if (!apiKey) throw new Error("ETHERSCAN_API_KEY not set");
-
+async function explorerFetch(
+  baseUrl: string,
+  apiKey: string,
+  params: Record<string, string>,
+  chainIdParam?: number,
+): Promise<unknown[]> {
   const qs = new URLSearchParams({
-    chainid: String(chainId),
-    apikey:  apiKey,
+    ...(chainIdParam !== undefined ? { chainid: String(chainIdParam) } : {}),
+    apikey: apiKey,
     ...params,
   }).toString();
 
-  const url = `${ETHERSCAN_BASE}?${qs}`;
-
+  const url = `${baseUrl}?${qs}`;
   const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-  if (!res.ok) throw new Error(`Etherscan HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`Explorer API HTTP ${res.status}`);
 
   const json = await res.json() as { status: string; message: string; result: unknown };
   if (json.status !== "1") {
-    // "No transactions found" is a normal empty result, not an error
     if (json.message === "No transactions found" || json.result === "No transactions found") {
       return [];
     }
-    throw new Error(`Etherscan API error: ${json.message} — ${JSON.stringify(json.result).slice(0, 100)}`);
+    throw new Error(`Explorer API error: ${json.message} — ${JSON.stringify(json.result).slice(0, 100)}`);
   }
   return Array.isArray(json.result) ? json.result : [];
+}
+
+async function etherscanFetch(chainId: number, params: Record<string, string>): Promise<unknown[]> {
+  const apiKey = process.env.ETHERSCAN_API_KEY;
+  if (!apiKey) throw new Error("ETHERSCAN_API_KEY not set");
+  return explorerFetch(ETHERSCAN_BASE, apiKey, params, chainId);
+}
+
+async function bscscanFetch(params: Record<string, string>): Promise<unknown[]> {
+  const apiKey = process.env.BSCSCAN_API_KEY;
+  if (!apiKey) throw new Error("BSCSCAN_API_KEY not set");
+  return explorerFetch(BSCSCAN_BASE, apiKey, params);
 }
 
 interface EtherscanTokenTx {
@@ -84,15 +99,16 @@ interface EtherscanNativeTx {
   isError:       string;
 }
 
+type FetchFn = (params: Record<string, string>) => Promise<unknown[]>;
+
 /**
- * Scan a single deposit address on one network using Etherscan API.
+ * Scan a single deposit address on one network using a block explorer API.
  * Fetches ERC-20 token transfers + native coin transactions.
  */
 async function scanAddressOnChain(
   network:    string,
-  chainId:    number,
+  fetchFn:    FetchFn,
   depAddr:    { userId: number; address: string },
-  customTokenContracts: Set<string>,
 ) {
   const addr       = depAddr.address.toLowerCase();
   const required   = getRequiredConfirmations(network);
@@ -101,7 +117,7 @@ async function scanAddressOnChain(
   // ── ERC-20 token transfers ──────────────────────────────────────────────
   let tokenTxs: EtherscanTokenTx[] = [];
   try {
-    tokenTxs = (await etherscanFetch(chainId, {
+    tokenTxs = (await fetchFn({
       module:     "account",
       action:     "tokentx",
       address:    depAddr.address,
@@ -112,7 +128,7 @@ async function scanAddressOnChain(
       offset:     "200",
     })) as EtherscanTokenTx[];
   } catch (err) {
-    logger.warn({ err, network, address: addr }, "Etherscan tokentx fetch failed");
+    logger.warn({ err, network, address: addr }, "Explorer tokentx fetch failed");
   }
 
   for (const tx of tokenTxs) {
@@ -135,7 +151,7 @@ async function scanAddressOnChain(
   if (nativeAsset) {
     let nativeTxs: EtherscanNativeTx[] = [];
     try {
-      nativeTxs = (await etherscanFetch(chainId, {
+      nativeTxs = (await fetchFn({
         module:     "account",
         action:     "txlist",
         address:    depAddr.address,
@@ -146,7 +162,7 @@ async function scanAddressOnChain(
         offset:     "200",
       })) as EtherscanNativeTx[];
     } catch (err) {
-      logger.warn({ err, network, address: addr }, "Etherscan txlist fetch failed");
+      logger.warn({ err, network, address: addr }, "Explorer txlist fetch failed");
     }
 
     for (const tx of nativeTxs) {
@@ -165,10 +181,7 @@ async function scanAddressOnChain(
   }
 
   // Advance the startblock watermark to avoid re-fetching old txs
-  // Use the highest seen block from this scan
-  const allBlocks = [
-    ...tokenTxs.map(t => parseInt(t.blockNumber, 10)),
-  ];
+  const allBlocks = tokenTxs.map(t => parseInt(t.blockNumber, 10));
   if (allBlocks.length > 0) {
     const maxBlock = Math.max(...allBlocks);
     lastProcessedBlock[`${network}:${addr}`] = maxBlock + 1;
@@ -248,33 +261,48 @@ async function creditBalance(userId: number, asset: string, network: string, amo
 }
 
 /**
- * Run one scan cycle for all Etherscan-supported networks.
- * Called every 60 seconds (we don't need to poll faster — Etherscan gives full history).
+ * Run one scan cycle for all explorer-supported networks.
+ * ETH + POLYGON via Etherscan V2 API (ETHERSCAN_API_KEY).
+ * BSC via BscScan API (BSCSCAN_API_KEY) — if key is set, otherwise skipped.
+ * Called every 60 seconds (explorer APIs return full history, nothing is missed between polls).
  */
 export async function scanEtherscanNetworks() {
   const depositAddresses = await db.select().from(depositAddressesTable);
   if (depositAddresses.length === 0) return;
 
-  const networkMap: Record<string, string> = { ETH: "eth", BSC: "bsc", POLYGON: "polygon" };
   const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
 
-  for (const [network, chainId] of Object.entries(ETHERSCAN_CHAIN_IDS)) {
-    // Load custom tokens for this network
-    const networkKey = networkMap[network];
-    const customTokens = networkKey
-      ? await db.select().from(customTokensTable).where(eq(customTokensTable.network, networkKey))
-      : [];
-    const customContracts = new Set(customTokens.map(t => (t.contractAddress ?? "").toLowerCase()));
+  // Build list of networks + their fetch functions
+  type NetworkScan = { network: string; fetchFn: FetchFn };
+  const networksToScan: NetworkScan[] = [];
 
+  // ETH + POLYGON via Etherscan V2
+  for (const [network, chainId] of Object.entries(ETHERSCAN_CHAIN_IDS)) {
+    const cid = chainId;
+    networksToScan.push({
+      network,
+      fetchFn: (params) => etherscanFetch(cid, params),
+    });
+  }
+
+  // BSC via BscScan (only if BSCSCAN_API_KEY is set)
+  if (process.env.BSCSCAN_API_KEY) {
+    networksToScan.push({
+      network: "BSC",
+      fetchFn: (params) => bscscanFetch(params),
+    });
+  }
+
+  for (const { network, fetchFn } of networksToScan) {
     for (const depAddr of depositAddresses) {
       try {
-        await scanAddressOnChain(network, chainId, depAddr, customContracts);
+        await scanAddressOnChain(network, fetchFn, depAddr);
         // Each address makes 2 API calls (tokentx + txlist).
         // Free plan limit = 5 req/sec. With 2 calls/address we wait 500ms
         // to stay safely under 2 addr/sec = 4 req/sec.
         await delay(500);
       } catch (err) {
-        logger.warn({ err, network, address: depAddr.address }, "Etherscan scan error");
+        logger.warn({ err, network, address: depAddr.address }, "Explorer scan error");
         await delay(1000); // extra back-off on error
       }
     }
@@ -291,18 +319,23 @@ export function startEtherscanMonitor() {
     logger.warn("ETHERSCAN_API_KEY not set — Etherscan deposit monitor disabled");
     return;
   }
-  logger.info("Starting Etherscan deposit monitor (ETH + POLYGON)");
+
+  const hasBscScan = !!process.env.BSCSCAN_API_KEY;
+  logger.info(
+    { bscEnabled: hasBscScan },
+    `Starting explorer deposit monitor (ETH + POLYGON${hasBscScan ? " + BSC" : " — BSC skipped (no BSCSCAN_API_KEY)"})`,
+  );
 
   const run = async () => {
     try {
       await scanEtherscanNetworks();
     } catch (err) {
-      logger.warn({ err }, "Etherscan monitor cycle error");
+      logger.warn({ err }, "Explorer monitor cycle error");
     }
   };
 
   run();
-  // Poll every 60s — Etherscan returns full history so we don't miss anything between polls
+  // Poll every 60s — explorer APIs return full history so we don't miss anything between polls
   etherscanInterval = setInterval(run, 60_000);
 }
 

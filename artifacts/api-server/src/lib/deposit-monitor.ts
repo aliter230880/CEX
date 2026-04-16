@@ -363,34 +363,24 @@ async function creditDeposit(
   logger.info({ userId, asset, network, amount, txHash }, "Deposit credited");
 }
 
-// ETH and POLYGON are now handled by the Etherscan monitor (more reliable, full history).
-// Only BSC uses RPC getLogs (bscscan free API not available with our key).
-const NETWORKS = ["BSC"];
+// ETH and POLYGON are handled by the Etherscan monitor (more reliable, full history).
+// BSC is also handled by the Etherscan monitor if BSCSCAN_API_KEY is set.
+// If BSCSCAN_API_KEY is NOT set, BSC deposits are not monitored via explorer API —
+// public BSC RPCs rate-limit getLogs requests (error -32005).
+// Add your free BscScan API key at https://bscscan.com/apis as BSCSCAN_API_KEY.
 const POLL_INTERVAL_MS = 30_000;
 
 let monitorInterval: NodeJS.Timeout | null = null;
 
 export function startDepositMonitor() {
   if (monitorInterval) return;
-  logger.info("Starting deposit monitor (RPC + Etherscan)");
+  logger.info("Starting deposit monitor (Etherscan/BscScan API)");
 
-  const run = async () => {
-    // BSC via RPC getLogs (Etherscan V2 free key doesn't cover BSC)
-    for (const network of NETWORKS) {
-      try {
-        await scanNetwork(network);
-      } catch (err) {
-        logger.warn({ err, network }, "Deposit monitor scan error");
-      }
-    }
-  };
-
-  // RPC monitor for BSC — every 30s
-  run();
-  monitorInterval = setInterval(run, POLL_INTERVAL_MS);
-
-  // Etherscan monitor for ETH + POLYGON — every 60s
+  // Etherscan monitor for ETH + POLYGON (+ BSC if BSCSCAN_API_KEY is set)
   startEtherscanMonitor();
+
+  // Keep a heartbeat interval so stopDepositMonitor can clean up
+  monitorInterval = setInterval(() => { /* heartbeat */ }, POLL_INTERVAL_MS);
 }
 
 export function stopDepositMonitor() {
