@@ -29,15 +29,18 @@ async function scanNetwork(network: string) {
     return; // RPC unavailable or slow, skip this round
   }
 
+  // Use a safety buffer to avoid "invalid block range" errors on fresh blocks
+  const safeBlock = currentBlock > 10n ? currentBlock - 10n : currentBlock;
+
   if (!lastScannedBlock[network]) {
-    lastScannedBlock[network] = currentBlock - 10n;
+    lastScannedBlock[network] = safeBlock - 10n;
   }
 
   const fromBlock = lastScannedBlock[network] + 1n;
-  if (fromBlock > currentBlock) return;
+  if (fromBlock > safeBlock) return;
 
-  // Limit scan range to avoid RPC errors
-  const toBlock = currentBlock > fromBlock + 50n ? fromBlock + 50n : currentBlock;
+  // Limit scan range to avoid RPC errors (max 50 blocks per cycle)
+  const toBlock = safeBlock > fromBlock + 50n ? fromBlock + 50n : safeBlock;
 
   // Get all deposit addresses (we'll filter by matching)
   const depositAddresses = await db.select().from(depositAddressesTable);
