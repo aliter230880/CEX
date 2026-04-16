@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { eq, and, inArray } from "drizzle-orm";
-import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable } from "@workspace/db";
+import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, customTokensTable } from "@workspace/db";
 import { logger } from "./logger";
 import {
   getProvider,
@@ -59,6 +59,25 @@ async function scanNetwork(network: string) {
       }
     } catch (err) {
       logger.warn({ err, network, asset }, "Error scanning asset");
+    }
+  }
+
+  // Also scan custom tokens on this network
+  const networkMap: Record<string, string> = { ETH: "eth", BSC: "bsc", POLYGON: "polygon" };
+  const chainKey = networkMap[network];
+  if (chainKey) {
+    const customTokens = await db.select().from(customTokensTable).where(eq(customTokensTable.chain, chainKey));
+    for (const token of customTokens) {
+      if (!token.contractAddress) continue;
+      try {
+        await scanERC20Transfers(
+          network, provider, fromBlock, toBlock,
+          depositAddresses, addressSet,
+          token.symbol, token.contractAddress, token.decimals ?? 18,
+        );
+      } catch (err) {
+        logger.warn({ err, network, token: token.symbol }, "Error scanning custom token");
+      }
     }
   }
 
