@@ -1,56 +1,85 @@
 import { useEffect, useRef, useState } from "react";
 
-/* ── Token SVG icons ─────────────────────────────────────────────── */
+/* ── Token SVG icons — NO background circle, just the symbol paths ── */
 const TOKEN_ICONS: Record<string, { svg: string; color: string; glow: string }> = {
   BTC: {
     color: "#F7931A",
     glow: "#F7931A",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#F7931A"/>
-      <path d="M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z" fill="white"/>
+      <defs>
+        <linearGradient id="btcg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#FFB347"/>
+          <stop offset="100%" stop-color="#F7931A"/>
+        </linearGradient>
+      </defs>
+      <path d="M22.5 13.8c.3-2-1.2-3.1-3.3-3.8l.7-2.7-1.7-.4-.7 2.6-1.3-.3.7-2.6-1.7-.4-.7 2.7-1-.3v-.1l-2.3-.6-.4 1.8s1.2.3 1.2.3c.7.2.8.6.8.9l-2 7.9c-.1.3-.4.6-.9.5l-1.2-.3-.8 1.9 2.2.6 1.2.3-.7 2.8 1.7.4.7-2.8 1.3.3-.7 2.8 1.7.4.7-2.8c2.9.5 5.1.3 6-2.3.7-2-.03-3.2-1.5-3.9.95-.4 1.7-1.1 1.9-2.3zm-3.4 4.8c-.5 2-3.9 1-5 .7l.9-3.5c1.1.3 4.7.8 4.1 2.8zm.5-4.8c-.5 1.8-3.3 1-4.2.7l.8-3.2c.9.2 3.9.7 3.4 2.5z" fill="url(#btcg)"/>
     </svg>`,
   },
   ETH: {
     color: "#627EEA",
     glow: "#627EEA",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#627EEA"/>
-      <path d="M16 5l-6.5 11.5L16 20l6.5-3.5L16 5z" fill="white" opacity="0.9"/>
-      <path d="M9.5 16.5L16 20l6.5-3.5-6.5 10.5-6.5-10.5z" fill="white" opacity="0.6"/>
+      <defs>
+        <linearGradient id="ethg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#9ab4f7"/>
+          <stop offset="100%" stop-color="#627EEA"/>
+        </linearGradient>
+      </defs>
+      <path d="M16 5l-6.5 11.5L16 20l6.5-3.5L16 5z" fill="url(#ethg)" opacity="0.95"/>
+      <path d="M9.5 16.5L16 20l6.5-3.5-6.5 10.5-6.5-10.5z" fill="url(#ethg)" opacity="0.7"/>
     </svg>`,
   },
   BNB: {
     color: "#F0B90B",
     glow: "#F0B90B",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#F0B90B"/>
-      <path d="M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z" fill="white"/>
-      <rect x="14" y="14" width="4" height="4" rx="1" fill="white" transform="rotate(45 16 16)"/>
+      <defs>
+        <linearGradient id="bnbg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#ffe066"/>
+          <stop offset="100%" stop-color="#F0B90B"/>
+        </linearGradient>
+      </defs>
+      <path d="M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z" fill="url(#bnbg)"/>
+      <rect x="14" y="14" width="4" height="4" rx="1" fill="url(#bnbg)" transform="rotate(45 16 16)"/>
     </svg>`,
   },
   SOL: {
     color: "#9945FF",
     glow: "#9945FF",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="url(#solgrad)"/>
-      <defs><linearGradient id="solgrad" x1="0" y1="0" x2="32" y2="32"><stop offset="0%" stop-color="#9945FF"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs>
-      <path d="M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z" fill="white"/>
+      <defs>
+        <linearGradient id="solg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#c084fc"/>
+          <stop offset="100%" stop-color="#14F195"/>
+        </linearGradient>
+      </defs>
+      <path d="M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z" fill="url(#solg)"/>
     </svg>`,
   },
   POL: {
     color: "#8247E5",
     glow: "#8247E5",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#8247E5"/>
-      <path d="M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z" fill="white"/>
+      <defs>
+        <linearGradient id="polg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#c084fc"/>
+          <stop offset="100%" stop-color="#8247E5"/>
+        </linearGradient>
+      </defs>
+      <path d="M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z" fill="url(#polg)"/>
     </svg>`,
   },
   USDT: {
     color: "#26A17B",
     glow: "#26A17B",
     svg: `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="16" cy="16" r="16" fill="#26A17B"/>
-      <path d="M17 8v3h4v2h-9v-2h4v-3h1zm-5 7c0 2.7 1.8 4.5 4 5.2v2.8h-1v-2c-3-.7-5-3-5-6h2zm6 0h2c0 3-2 5.3-5 6v2h-1v-2.8c2.2-.7 4-2.5 4-5.2z" fill="white"/>
+      <defs>
+        <linearGradient id="usdtg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#50d8a8"/>
+          <stop offset="100%" stop-color="#26A17B"/>
+        </linearGradient>
+      </defs>
+      <path d="M17 8v3h4v2h-9v-2h4v-3h1zm-5 7c0 2.7 1.8 4.5 4 5.2v2.8h-1v-2c-3-.7-5-3-5-6h2zm6 0h2c0 3-2 5.3-5 6v2h-1v-2.8c2.2-.7 4-2.5 4-5.2z" fill="url(#usdtg)"/>
     </svg>`,
   },
 };
@@ -88,35 +117,31 @@ function FloatingToken({ token }: { token: typeof FLOATING_TOKENS[0] }) {
       animation: `floatToken ${token.duration}s ease-in-out infinite`,
       animationDelay: `${token.delay}s`,
     }}>
-      {/* Glass ring */}
+      {/* Ambient glow halo — no fill, just radial light */}
       <div style={{
         position: "absolute",
-        inset: -8,
+        inset: -token.size * 0.35,
         borderRadius: "50%",
-        background: `radial-gradient(circle, ${info.glow}18 0%, transparent 70%)`,
-        border: `1px solid ${info.glow}30`,
-        animation: `pulseRing ${token.duration * 0.7}s ease-in-out infinite`,
+        background: `radial-gradient(circle, ${info.glow}20 0%, ${info.glow}08 40%, transparent 70%)`,
+        animation: `pulseRing ${token.duration * 0.65}s ease-in-out infinite`,
         animationDelay: `${token.delay}s`,
+        pointerEvents: "none",
       }} />
-      {/* Coin */}
-      <div style={{
-        width: "100%",
-        height: "100%",
-        borderRadius: "50%",
-        background: `rgba(255,255,255,0.06)`,
-        backdropFilter: "blur(16px)",
-        border: `1.5px solid ${info.glow}40`,
-        boxShadow: `0 8px 32px ${info.glow}30, 0 0 0 1px rgba(255,255,255,0.06) inset, 0 2px 0 rgba(255,255,255,0.15) inset`,
-        overflow: "hidden",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}>
-        <div
-          dangerouslySetInnerHTML={{ __html: info.svg }}
-          style={{ width: "70%", height: "70%", filter: `drop-shadow(0 0 6px ${info.glow}80)` }}
-        />
-      </div>
+
+      {/* The icon itself — no container, just glass-colored SVG */}
+      <div
+        dangerouslySetInnerHTML={{ __html: info.svg }}
+        style={{
+          width: "100%",
+          height: "100%",
+          filter: [
+            `drop-shadow(0 0 ${token.size * 0.18}px ${info.glow}cc)`,
+            `drop-shadow(0 0 ${token.size * 0.08}px ${info.glow}66)`,
+            `drop-shadow(0 ${token.size * 0.06}px ${token.size * 0.15}px rgba(0,0,0,0.5))`,
+          ].join(" "),
+          opacity: 0.82,
+        }}
+      />
     </div>
   );
 }
