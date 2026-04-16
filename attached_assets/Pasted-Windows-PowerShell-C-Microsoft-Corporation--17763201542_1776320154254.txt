@@ -1,0 +1,39 @@
+Windows PowerShell
+(C) Корпорация Майкрософт (Microsoft Corporation). Все права защищены.
+
+Попробуйте новую кроссплатформенную оболочку PowerShell (https://aka.ms/pscore6)
+
+PS C:\Users\dubovitskiydv> ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/github_deploy -N ""
+>> cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
+>> cat ~/.ssh/github_deploy
+ssh-keygen : Имя "ssh-keygen" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Пров
+ерьте правильность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ ssh-keygen -t ed25519 -C "github-deploy" -f ~/.ssh/github_deploy -N " ...
++ ~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (ssh-keygen:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+out-file : Не удалось найти часть пути "C:\Users\dubovitskiydv\.ssh\authorized_keys".
+строка:2 знак:1
++ cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OpenError: (:) [Out-File], DirectoryNotFoundException
+    + FullyQualifiedErrorId : FileOpenFailure,Microsoft.PowerShell.Commands.OutFileCommand
+
+cat : Не удается найти путь "C:\Users\dubovitskiydv\.ssh\github_deploy", так как он не существует.
+строка:3 знак:1
++ cat ~/.ssh/github_deploy
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (C:\Users\dubovi...h\github_deploy:String) [Get-Content], ItemNotFoundEx
+   ception
+    + FullyQualifiedErrorId : PathNotFound,Microsoft.PowerShell.Commands.GetContentCommand
+
+PS C:\Users\dubovitskiydv> ssh root@89.111.152.187
+ssh : Имя "ssh" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правильн
+ость написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ ssh root@89.111.152.187
++ ~~~
+    + CategoryInfo          : ObjectNotFound: (ssh:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
