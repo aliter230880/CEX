@@ -24,11 +24,12 @@ const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
   },
   SOL: {
     glow: "#9945FF",
-    svg: `<img src="/token-icons/sol.svg" width="20" height="20" style="object-fit:contain;display:block"/>`,
+    svg: `<img src="/token-icons/sol.svg" width="16" height="16" style="object-fit:contain;display:block"/>`,
   },
   POL: {
     glow: "#8247E5",
-    svg: `<img src="/token-icons/pol.svg" width="20" height="20" style="object-fit:contain;display:block"/>`,
+    // SVG filter: makes white/near-white pixels transparent (A' = -R-G-B+3*A)
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20"><defs><filter id="pol-f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 -1 -1 -1 3 0"/></filter></defs><image xlink:href="/token-icons/pol.svg" x="3" y="3" width="14" height="14" filter="url(#pol-f)"/></svg>`,
   },
 };
 
