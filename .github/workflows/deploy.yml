@@ -3,6 +3,8 @@ name: Deploy to Production
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/.gitkeep-dist'
 
 jobs:
   # ─── ШАГ 1: Показать список изменений ──────────────────────────────────────
@@ -40,16 +42,21 @@ jobs:
           echo "  Ожидание одобрения в GitHub Environments"
           echo "============================================"
 
-  # ─── ШАГ 2: Собрать фронтенд на GitHub Actions (быстрее, чем на VPS) ──────
+  # ─── ШАГ 2: Собрать фронтенд на CI и задеплоить ───────────────────────────
   build-and-deploy:
     name: Сборка и деплой
     runs-on: ubuntu-latest
     needs: summarize
+    permissions:
+      contents: write
     environment:
       name: production
       url: https://hex.aliterra.space
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
@@ -66,22 +73,21 @@ jobs:
       - name: Собрать фронтенд (Vite)
         run: pnpm --filter @workspace/cex-exchange run build
 
-      - name: Упаковать фронтенд в архив
+      - name: Закоммитить собранный фронтенд в репо
         run: |
-          tar -czf frontend-dist.tar.gz -C artifacts/cex-exchange/dist/public .
-          echo "Размер архива: $(du -sh frontend-dist.tar.gz | cut -f1)"
+          git config user.email "ci@atex.exchange"
+          git config user.name "ATEX CI"
+          # Принудительно добавляем dist (даже если в .gitignore)
+          git add -f artifacts/cex-exchange/dist/
+          # Коммитим только если есть изменения; [skip ci] — не триггерит новый деплой
+          if git diff --staged --quiet; then
+            echo "Фронтенд не изменился, коммит не нужен"
+          else
+            git commit -m "ci: pre-built frontend dist [skip ci]"
+            git push origin main
+          fi
 
-      - name: Скопировать архив на VPS
-        run: |
-          sudo apt-get install -y sshpass -q
-          sshpass -e scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
-            frontend-dist.tar.gz \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/frontend-dist.tar.gz
-          echo "Архив скопирован на сервер"
-        env:
-          SSHPASS: ${{ secrets.VPS_PASSWORD }}
-
-      - name: Обновить и перезапустить сервер
+      - name: Деплой на сервер (git pull + API build + PM2)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -92,7 +98,7 @@ jobs:
             set -e
             cd /root/nexex
 
-            echo "=== git sync ==="
+            echo "=== git sync (включая готовый dist фронтенда) ==="
             git fetch origin main
             git reset --hard origin/main
 
@@ -100,10 +106,8 @@ jobs:
             HASH='$2b$12$KaZD8ignMUIPJ7pXoJ9Vp.nq9GXv8S9ybJ07TQV4rlBIobgLS3U8O'
             if grep -q "^ADMIN_PASSWORD=" .env 2>/dev/null; then
               sed -i "s|^ADMIN_PASSWORD=.*|ADMIN_PASSWORD=$HASH|" .env
-              echo "ADMIN_PASSWORD обновлён"
             else
               echo "ADMIN_PASSWORD=$HASH" >> .env
-              echo "ADMIN_PASSWORD добавлен"
             fi
 
             echo "=== миграция БД ==="
@@ -111,12 +115,7 @@ jobs:
             export DATABASE_URL
             pnpm --filter @workspace/db run push
 
-            echo "=== разворачиваем фронтенд (собран на CI) ==="
-            mkdir -p /root/nexex/artifacts/cex-exchange/dist/public
-            tar -xzf /tmp/frontend-dist.tar.gz -C /root/nexex/artifacts/cex-exchange/dist/public
-            echo "Фронтенд развёрнут"
-
-            echo "=== сборка API ==="
+            echo "=== сборка API (быстро) ==="
             pnpm --filter @workspace/api-server run build
 
             echo "=== копирование логотипа ==="
