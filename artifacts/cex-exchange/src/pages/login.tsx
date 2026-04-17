@@ -7,8 +7,6 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity } from "lucide-react";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -38,14 +36,40 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4 dark">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1 items-center text-center">
-          <Activity className="w-12 h-12 text-primary mb-4" />
-          <CardTitle className="text-2xl">Welcome back</CardTitle>
-          <CardDescription>Login to your ATEX account</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div
+      className="min-h-screen flex items-center justify-center p-4 dark"
+      style={{ background: "transparent" }}
+    >
+      {/* Ambient glows */}
+      <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0 }}>
+        <div style={{ position: "absolute", top: "20%", left: "25%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(0,255,136,0.06) 0%, transparent 70%)" }} />
+        <div style={{ position: "absolute", bottom: "20%", right: "20%", width: 350, height: 350, borderRadius: "50%", background: "radial-gradient(circle, rgba(168,85,247,0.07) 0%, transparent 70%)" }} />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <Link href="/" className="inline-flex items-center gap-2 no-hover">
+            <img src="/logo.png" alt="" className="w-10 h-10 object-contain" onError={e => (e.currentTarget.style.display = 'none')} />
+            <span className="text-3xl font-bold" style={{ color: "#00ff88", letterSpacing: "-0.02em" }}>ATEX</span>
+          </Link>
+          <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>Spot trading with confidence</p>
+        </div>
+
+        {/* Glass card */}
+        <div
+          className="rounded-2xl p-8"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid rgba(255,255,255,0.09)",
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
+            boxShadow: "0 0 40px rgba(0,0,0,0.4), 0 0 80px rgba(0,255,136,0.04)",
+          }}
+        >
+          <h2 className="text-2xl font-bold mb-1" style={{ color: "#fff" }}>Welcome back</h2>
+          <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.45)" }}>Login to your ATEX account</p>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -53,9 +77,18 @@ export default function Login() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Email</FormLabel>
+                    <FormLabel style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.8rem" }}>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="name@example.com" {...field} />
+                      <Input
+                        placeholder="name@example.com"
+                        {...field}
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff",
+                          borderRadius: "8px",
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -66,32 +99,52 @@ export default function Login() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.8rem" }}>Password</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input
+                        type="password"
+                        {...field}
+                        style={{
+                          background: "rgba(255,255,255,0.05)",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          color: "#fff",
+                          borderRadius: "8px",
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
               {form.formState.errors.root && (
-                <p className="text-sm font-medium text-destructive">{form.formState.errors.root.message}</p>
+                <p className="text-sm font-medium" style={{ color: "hsl(0 84% 60%)" }}>
+                  {form.formState.errors.root.message}
+                </p>
               )}
-              <Button type="submit" className="w-full" disabled={login.isPending}>
+              <Button
+                type="submit"
+                className="w-full font-semibold text-sm rounded-lg h-11"
+                disabled={login.isPending}
+                style={{
+                  background: login.isPending ? "rgba(0,255,136,0.4)" : "linear-gradient(135deg, #00ff88, #00cc6a)",
+                  color: "#080c18",
+                  border: "none",
+                  boxShadow: "0 0 20px rgba(0,255,136,0.25)",
+                }}
+              >
                 {login.isPending ? "Logging in..." : "Login"}
               </Button>
             </form>
           </Form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <div className="text-sm text-muted-foreground">
+
+          <div className="mt-5 text-center text-sm" style={{ color: "rgba(255,255,255,0.4)" }}>
             Don't have an account?{" "}
-            <Link href="/register" className="text-primary hover:underline">
+            <Link href="/register" className="font-medium" style={{ color: "#00ff88" }}>
               Register
             </Link>
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
