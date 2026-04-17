@@ -39,9 +39,11 @@ function injectCSS() {
   cssInjected = true;
 }
 
-/** Remove black/dark background via Canvas pixel processing */
-function useTransparentCanvas(src: string, size: number) {
+/** Draw video frames to canvas, removing black/dark background per-pixel */
+function useVideoCanvas(src: string, size: number) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const rafRef = useRef<number>(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -52,30 +54,45 @@ function useTransparentCanvas(src: string, size: number) {
     canvas.width = size;
     canvas.height = size;
 
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = src;
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, size, size);
+    const video = document.createElement("video");
+    videoRef.current = video;
+    video.src = src;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.crossOrigin = "anonymous";
+
+    function drawFrame() {
+      if (!canvas || !ctx || video.readyState < 2) {
+        rafRef.current = requestAnimationFrame(drawFrame);
+        return;
+      }
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(video, 0, 0, size, size);
+
       const imageData = ctx.getImageData(0, 0, size, size);
       const d = imageData.data;
-
       for (let i = 0; i < d.length; i += 4) {
         const r = d[i], g = d[i + 1], b = d[i + 2];
-        // Perceived brightness
         const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-
         if (brightness < 18) {
-          // Near-black → fully transparent
           d[i + 3] = 0;
         } else if (brightness < 50) {
-          // Dark fringe → fade out smoothly
           d[i + 3] = Math.round(((brightness - 18) / 32) * 255);
         }
-        // Bright pixels → keep fully opaque
       }
-
       ctx.putImageData(imageData, 0, 0);
+      rafRef.current = requestAnimationFrame(drawFrame);
+    }
+
+    video.play().catch(() => {});
+    rafRef.current = requestAnimationFrame(drawFrame);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      video.pause();
+      video.src = "";
     };
   }, [src, size]);
 
@@ -85,15 +102,15 @@ function useTransparentCanvas(src: string, size: number) {
 type Wobble = "a" | "b" | "c";
 
 interface TokenProps { size?: number; delay?: number; }
-interface ImgProps {
+interface VideoProps {
   src: string; size: number; delay: number;
   bobDur: number; wobbleDur: number; wobble: Wobble;
   glowColor: string; glowColor2?: string;
 }
 
-function GlassToken({ src, size, delay, bobDur, wobbleDur, wobble, glowColor, glowColor2 }: ImgProps) {
+function GlassToken({ src, size, delay, bobDur, wobbleDur, wobble, glowColor, glowColor2 }: VideoProps) {
   injectCSS();
-  const canvasRef = useTransparentCanvas(src, size);
+  const canvasRef = useVideoCanvas(src, size);
 
   return (
     <div style={{ width: size, height: size, position: "relative" }}>
@@ -120,7 +137,6 @@ function GlassToken({ src, size, delay, bobDur, wobbleDur, wobble, glowColor, gl
           animation: `gt-wobble-${wobble} ${wobbleDur}s ease-in-out infinite`,
           animationDelay: `${delay * 0.35}s`,
         }}>
-          {/* Canvas with black bg removed */}
           <canvas
             ref={canvasRef}
             style={{
@@ -136,27 +152,27 @@ function GlassToken({ src, size, delay, bobDur, wobbleDur, wobble, glowColor, gl
 }
 
 export function BTCGlass({ size = 380, delay = 0 }: TokenProps) {
-  return <GlassToken src="/glass-tokens/btc.jpg" size={size} delay={delay}
+  return <GlassToken src="/glass-tokens/btc.webm" size={size} delay={delay}
     bobDur={5.4} wobbleDur={11.0} wobble="a"
     glowColor="rgba(255,130,20,0.85)" glowColor2="rgba(200,60,0,0.5)" />;
 }
 export function ETHGlass({ size = 360, delay = 0 }: TokenProps) {
-  return <GlassToken src="/glass-tokens/eth.jpg" size={size} delay={delay}
+  return <GlassToken src="/glass-tokens/eth.webm" size={size} delay={delay}
     bobDur={4.8} wobbleDur={12.5} wobble="b"
     glowColor="rgba(255,200,40,0.8)" glowColor2="rgba(60,120,255,0.5)" />;
 }
 export function SOLGlass({ size = 360, delay = 0 }: TokenProps) {
-  return <GlassToken src="/glass-tokens/sol.jpg" size={size} delay={delay}
+  return <GlassToken src="/glass-tokens/sol.webm" size={size} delay={delay}
     bobDur={5.8} wobbleDur={10.5} wobble="c"
     glowColor="rgba(140,50,255,0.85)" glowColor2="rgba(20,235,149,0.5)" />;
 }
 export function BNBGlass({ size = 340, delay = 0 }: TokenProps) {
-  return <GlassToken src="/glass-tokens/bnb.jpg" size={size} delay={delay}
+  return <GlassToken src="/glass-tokens/bnb.webm" size={size} delay={delay}
     bobDur={4.6} wobbleDur={13.5} wobble="a"
     glowColor="rgba(255,200,10,0.8)" glowColor2="rgba(255,60,150,0.5)" />;
 }
 export function POLGlass({ size = 320, delay = 0 }: TokenProps) {
-  return <GlassToken src="/glass-tokens/pol.jpg" size={size} delay={delay}
+  return <GlassToken src="/glass-tokens/pol.webm" size={size} delay={delay}
     bobDur={5.2} wobbleDur={9.5} wobble="b"
     glowColor="rgba(110,55,230,0.85)" glowColor2="rgba(200,80,255,0.55)" />;
 }
