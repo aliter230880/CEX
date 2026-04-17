@@ -43,6 +43,22 @@ const PROCESS_RES = 192; // internal canvas resolution — lower = faster proces
 const TARGET_FPS = 20;  // throttle pixel processing to 20 fps
 const FRAME_MS = 1000 / TARGET_FPS;
 
+function processFrame(ctx: CanvasRenderingContext2D, video: HTMLVideoElement) {
+  ctx.clearRect(0, 0, PROCESS_RES, PROCESS_RES);
+  ctx.drawImage(video, 0, 0, PROCESS_RES, PROCESS_RES);
+  const imageData = ctx.getImageData(0, 0, PROCESS_RES, PROCESS_RES);
+  const d = imageData.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const brightness = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    if (brightness < 18) {
+      d[i + 3] = 0;
+    } else if (brightness < 50) {
+      d[i + 3] = Math.round(((brightness - 18) / 32) * 255);
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
 /** Draw video frames to canvas, removing black/dark background per-pixel */
 function useVideoCanvas(src: string) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,31 +82,30 @@ function useVideoCanvas(src: string) {
     video.playsInline = true;
     video.crossOrigin = "anonymous";
 
-    function drawFrame(now: number) {
-      rafRef.current = requestAnimationFrame(drawFrame);
-      if (video.readyState < 2 || video.seeking) return; // skip incomplete frames
-      if (now - lastFrameRef.current < FRAME_MS) return; // throttle
+    // requestVideoFrameCallback fires only when a complete frame is ready → no tearing
+    const hasRVFC = "requestVideoFrameCallback" in video;
+
+    function onFrame() {
+      processFrame(ctx!, video);
+      (video as any).requestVideoFrameCallback(onFrame);
+    }
+
+    // Fallback: rAF with throttle + seeking guard
+    function drawFrameRAF(now: number) {
+      rafRef.current = requestAnimationFrame(drawFrameRAF);
+      if (video.readyState < 2 || video.seeking) return;
+      if (now - lastFrameRef.current < FRAME_MS) return;
       lastFrameRef.current = now;
-
-      ctx!.clearRect(0, 0, PROCESS_RES, PROCESS_RES);
-      ctx!.drawImage(video, 0, 0, PROCESS_RES, PROCESS_RES);
-
-      const imageData = ctx!.getImageData(0, 0, PROCESS_RES, PROCESS_RES);
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        const r = d[i], g = d[i + 1], b = d[i + 2];
-        const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
-        if (brightness < 18) {
-          d[i + 3] = 0;
-        } else if (brightness < 50) {
-          d[i + 3] = Math.round(((brightness - 18) / 32) * 255);
-        }
-      }
-      ctx!.putImageData(imageData, 0, 0);
+      processFrame(ctx!, video);
     }
 
     video.play().catch(() => {});
-    rafRef.current = requestAnimationFrame(drawFrame);
+
+    if (hasRVFC) {
+      (video as any).requestVideoFrameCallback(onFrame);
+    } else {
+      rafRef.current = requestAnimationFrame(drawFrameRAF);
+    }
 
     return () => {
       cancelAnimationFrame(rafRef.current);
