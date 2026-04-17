@@ -19,8 +19,8 @@ const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
   },
   BNB: {
     glow: "#F0B90B",
-    // BNB: gold circle + 5 connected white diamonds (center + N/E/S/W)
-    svg: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" fill="#F0B90B"/><path d="M16 5.5L19.5 9 16 12.5 12.5 9 16 5.5zM16 19.5L19.5 23 16 26.5 12.5 23 16 19.5zM5.5 16L9 12.5 12.5 16 9 19.5 5.5 16zM19.5 16L23 12.5 26.5 16 23 19.5 19.5 16zM16 12.5L19.5 16 16 19.5 12.5 16 16 12.5z" fill="white"/></svg>`,
+    // BNB: top chevron ∧ + bottom chevron ∨ + center diamond + 2 side diamonds
+    svg: `<svg viewBox="0 0 32 32" fill="#F0B90B"><path d="M12 12L16 8 20 12 22.5 9.5 16 3 9.5 9.5 12 12z"/><path d="M12 20L9.5 22.5 16 29 22.5 22.5 20 20 16 24 12 20z"/><path d="M5 16L7.5 13.5 10 16 7.5 18.5 5 16z"/><path d="M22 16L24.5 13.5 27 16 24.5 18.5 22 16z"/><path d="M13 16L16 13 19 16 16 19 13 16z"/></svg>`,
   },
   SOL: {
     glow: "#9945FF",
