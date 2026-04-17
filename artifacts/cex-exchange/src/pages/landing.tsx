@@ -80,23 +80,23 @@ function ParticleCanvas() {
 function FloatingGlassTokens() {
   return (
     <>
-      {/* BTC — top-left */}
-      <div style={{ position: "absolute", left: "-30px", top: "4%", pointerEvents: "none", zIndex: 3 }}>
+      {/* BTC — top-left: +95px toward center, +63px down (1/3 of 190) */}
+      <div style={{ position: "absolute", left: "65px", top: "calc(4% + 63px)", pointerEvents: "none", zIndex: 3 }}>
         <BTCGlass size={190} delay={0}/>
       </div>
-      {/* ETH — top-right */}
-      <div style={{ position: "absolute", right: "-25px", top: "2%", pointerEvents: "none", zIndex: 3 }}>
+      {/* ETH — top-right: +90px toward center, +60px down (1/3 of 180) */}
+      <div style={{ position: "absolute", right: "65px", top: "calc(2% + 60px)", pointerEvents: "none", zIndex: 3 }}>
         <ETHGlass size={180} delay={1.5}/>
       </div>
-      {/* SOL — left, mid-lower */}
-      <div style={{ position: "absolute", left: "-30px", top: "50%", pointerEvents: "none", zIndex: 3 }}>
+      {/* SOL — left mid: +90px toward center, no vertical change */}
+      <div style={{ position: "absolute", left: "60px", top: "50%", pointerEvents: "none", zIndex: 3 }}>
         <SOLGlass size={180} delay={2.2}/>
       </div>
-      {/* BNB — right, mid-lower */}
-      <div style={{ position: "absolute", right: "-25px", top: "45%", pointerEvents: "none", zIndex: 3 }}>
+      {/* BNB — right mid: +85px toward center, no vertical change */}
+      <div style={{ position: "absolute", right: "60px", top: "45%", pointerEvents: "none", zIndex: 3 }}>
         <BNBGlass size={170} delay={0.8}/>
       </div>
-      {/* POL — bottom-center */}
+      {/* POL — bottom-center: unchanged */}
       <div style={{ position: "absolute", left: "50%", bottom: "-15px", transform: "translateX(-50%)", pointerEvents: "none", zIndex: 3 }}>
         <POLGlass size={160} delay={0.4}/>
       </div>
