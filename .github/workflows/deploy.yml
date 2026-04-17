@@ -81,6 +81,9 @@ jobs:
             export DATABASE_URL
             pnpm --filter @workspace/db run push
 
+            echo "=== сборка фронтенда ==="
+            pnpm --filter @workspace/cex-exchange run build
+
             echo "=== сборка API ==="
             pnpm --filter @workspace/api-server run build
 
