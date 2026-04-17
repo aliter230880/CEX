@@ -1,12 +1,18 @@
 /**
- * 3D Glass Tokens — reference JPG images with edge-fading mask
- * Radial mask hides the dark rectangle corners of JPGs
+ * 3D Glass Tokens — mix-blend-mode: screen removes dark JPG background
+ * Dark pixels become transparent on the dark page (#050912).
+ * Bright colored glass parts float without any background box.
  */
 
 const CSS = `
-@keyframes gt-bob  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-28px)} }
-@keyframes gt-spin { from{transform:rotateY(0deg)} to{transform:rotateY(360deg)} }
-@keyframes gt-tilt { 0%,100%{transform:rotateX(12deg) rotateZ(-4deg)} 50%{transform:rotateX(-10deg) rotateZ(4deg)} }
+@keyframes gt-bob  { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-32px)} }
+@keyframes gt-tilt {
+  0%   { transform: perspective(900px) rotateY(-12deg) rotateX(8deg) rotateZ(-3deg); }
+  33%  { transform: perspective(900px) rotateY(8deg)  rotateX(-6deg) rotateZ(2deg);  }
+  66%  { transform: perspective(900px) rotateY(14deg) rotateX(4deg)  rotateZ(-2deg); }
+  100% { transform: perspective(900px) rotateY(-12deg) rotateX(8deg) rotateZ(-3deg); }
+}
+@keyframes gt-glow { 0%,100%{opacity:.7;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
 `;
 
 let cssInjected = false;
@@ -20,93 +26,98 @@ function injectCSS() {
 
 interface TokenProps { size?: number; delay?: number; }
 
-function GlassImg({ src, size, delay, spinDur, bobDur, glow }:
-  { src: string; size: number; delay: number; spinDur: number; bobDur: number; glow: string }) {
+function GlassImg({ src, size, delay, bobDur, tiltDur, glow, glow2 }:
+  { src: string; size: number; delay: number; bobDur: number; tiltDur: number; glow: string; glow2?: string }) {
   injectCSS();
 
   return (
-    <div style={{
-      width: size,
-      height: size,
-      position: "relative",
-    }}>
-      {/* Colored glow behind the token */}
+    /* Outer wrapper — just positioning, no background */
+    <div style={{ width: size, height: size, position: "relative" }}>
+
+      {/* === GLOW BLOB behind the token === */}
       <div style={{
         position: "absolute",
-        inset: "-35%",
-        background: `radial-gradient(circle at 50% 50%, ${glow} 0%, transparent 65%)`,
-        opacity: 0.9,
+        inset: "-40%",
+        background: glow2
+          ? `radial-gradient(ellipse 70% 70% at 40% 50%, ${glow} 0%, ${glow2} 50%, transparent 80%)`
+          : `radial-gradient(circle at 50% 50%, ${glow} 0%, transparent 70%)`,
+        animation: `gt-glow ${bobDur * 0.9}s ease-in-out infinite`,
+        animationDelay: `${delay * 0.6}s`,
         zIndex: 0,
         pointerEvents: "none",
-        filter: "blur(8px)",
+        filter: "blur(30px)",
       }} />
 
-      {/* Bob animation wrapper */}
+      {/* === BOB (float up-down) === */}
       <div style={{
         width: "100%", height: "100%",
-        position: "relative",
-        zIndex: 1,
+        position: "relative", zIndex: 1,
         animation: `gt-bob ${bobDur}s ease-in-out infinite`,
         animationDelay: `${delay}s`,
-        transformStyle: "preserve-3d",
       }}>
-        {/* Spin */}
+
+        {/* === TILT (slow 3-axis rotation) === */}
         <div style={{
           width: "100%", height: "100%",
-          animation: `gt-spin ${spinDur}s linear infinite`,
-          animationDelay: `${delay * 0.5}s`,
-          transformStyle: "preserve-3d",
+          animation: `gt-tilt ${tiltDur}s ease-in-out infinite`,
+          animationDelay: `${delay * 0.4}s`,
         }}>
-          {/* Tilt */}
-          <div style={{
-            width: "100%", height: "100%",
-            animation: `gt-tilt ${bobDur * 1.1}s ease-in-out infinite`,
-            animationDelay: `${delay * 0.7}s`,
-            transformStyle: "preserve-3d",
-          }}>
-            <img
-              src={src}
-              alt=""
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "contain",
-                display: "block",
-                userSelect: "none",
-                pointerEvents: "none",
-                /* Fade out the rectangular dark edges */
-                WebkitMaskImage: "radial-gradient(ellipse 78% 78% at 50% 50%, black 45%, transparent 75%)",
-                maskImage: "radial-gradient(ellipse 78% 78% at 50% 50%, black 45%, transparent 75%)",
-                /* Boost colors */
-                filter: "brightness(1.5) contrast(1.25) saturate(1.4) drop-shadow(0 20px 40px rgba(0,0,0,0.7))",
-                mixBlendMode: "screen",
-              }}
-              draggable={false}
-            />
-          </div>
+
+          {/* === IMAGE with screen blend — dark bg becomes transparent === */}
+          <img
+            src={src}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "contain",
+              display: "block",
+              userSelect: "none",
+              pointerEvents: "none",
+              /*
+               * screen blend: screen(dark_page, dark_jpg) ≈ transparent
+               * screen(dark_page, bright_glass)          = bright glass
+               * This makes the dark JPG background vanish on our #050912 page.
+               */
+              mixBlendMode: "screen",
+              filter: "brightness(2.0) contrast(1.2) saturate(1.5)",
+            }}
+            draggable={false}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-export function ETHGlass({ size = 340, delay = 0 }: TokenProps) {
-  return <GlassImg src="/glass-tokens/eth.jpg" size={size} delay={delay}
-    spinDur={14} bobDur={4.8} glow="rgba(98,126,234,0.75)"/>;
-}
+/* ── Individual tokens ────────────────────────────────── */
+
 export function BTCGlass({ size = 380, delay = 0 }: TokenProps) {
   return <GlassImg src="/glass-tokens/btc.jpg" size={size} delay={delay}
-    spinDur={16} bobDur={4.8} glow="rgba(249,166,36,0.7)"/>;
+    bobDur={5.2} tiltDur={9.8}
+    glow="rgba(249,140,20,0.75)" glow2="rgba(240,100,10,0.5)"/>;
 }
-export function BNBGlass({ size = 330, delay = 0 }: TokenProps) {
-  return <GlassImg src="/glass-tokens/bnb.jpg" size={size} delay={delay}
-    spinDur={18} bobDur={4.8} glow="rgba(240,185,11,0.7)"/>;
+
+export function ETHGlass({ size = 360, delay = 0 }: TokenProps) {
+  return <GlassImg src="/glass-tokens/eth.jpg" size={size} delay={delay}
+    bobDur={4.8} tiltDur={11.2}
+    glow="rgba(80,110,240,0.75)" glow2="rgba(0,200,255,0.5)"/>;
 }
+
 export function SOLGlass({ size = 360, delay = 0 }: TokenProps) {
   return <GlassImg src="/glass-tokens/sol.jpg" size={size} delay={delay}
-    spinDur={15} bobDur={4.8} glow="rgba(153,69,255,0.7)"/>;
+    bobDur={5.6} tiltDur={10.4}
+    glow="rgba(160,60,255,0.75)" glow2="rgba(20,241,149,0.4)"/>;
 }
+
+export function BNBGlass({ size = 340, delay = 0 }: TokenProps) {
+  return <GlassImg src="/glass-tokens/bnb.jpg" size={size} delay={delay}
+    bobDur={4.6} tiltDur={12.0}
+    glow="rgba(240,185,11,0.7)" glow2="rgba(255,80,120,0.4)"/>;
+}
+
 export function POLGlass({ size = 320, delay = 0 }: TokenProps) {
   return <GlassImg src="/glass-tokens/pol.jpg" size={size} delay={delay}
-    spinDur={13} bobDur={4.8} glow="rgba(130,71,229,0.7)"/>;
+    bobDur={5.0} tiltDur={9.2}
+    glow="rgba(130,71,229,0.75)" glow2="rgba(200,100,255,0.5)"/>;
 }
