@@ -19,15 +19,18 @@ const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
   },
   BNB: {
     glow: "#F0B90B",
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-bnb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffe066"/><stop offset="100%" stop-color="#F0B90B"/></linearGradient></defs><path d="M16 9l2.5 2.5L16 14l-2.5-2.5L16 9zM9 16l2.5-2.5 2.5 2.5-2.5 2.5L9 16zM23 16l-2.5 2.5-2.5-2.5 2.5-2.5L23 16zM16 18.5l2.5 2.5L16 23.5l-2.5-2.5L16 18.5z" fill="url(#l-bnb)"/><rect x="14" y="14" width="4" height="4" rx="1" fill="url(#l-bnb)" transform="rotate(45 16 16)"/></svg>`,
+    // BNB: 5 diamonds — 4 outer (N/E/S/W) + 1 center, rotated 45°
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-bnb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffe066"/><stop offset="100%" stop-color="#F0B90B"/></linearGradient></defs><path d="M16 6.5l3.2 3.2-3.2 3.2-3.2-3.2L16 6.5zM7.5 15l3.2-3.2 3.2 3.2-3.2 3.2L7.5 15zM24.5 15l-3.2 3.2-3.2-3.2 3.2-3.2L24.5 15zM16 18.1l3.2 3.2-3.2 3.2-3.2-3.2L16 18.1zM16 12l3 3-3 3-3-3 3-3z" fill="url(#l-bnb)"/></svg>`,
   },
   SOL: {
     glow: "#9945FF",
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs><path d="M8 20.5h13.5l-2.5 2.5H8l2.5-2.5zM8 14.8h13.5l2.5-2.5H10.5L8 14.8zM21.5 9H8l2.5 2.5H24L21.5 9z" fill="url(#l-sol)"/></svg>`,
+    // SOL: 3 parallelogram bars — top slants right, middle left, bottom right (official Solana shape)
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#9945FF"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs><path d="M8 9.5h14l-2.5 3H8l2.5-3zM8 14.5h14l2.5 3H10.5L8 14.5zM8 19.5h14l-2.5 3H8l2.5-3z" fill="url(#l-sol)"/></svg>`,
   },
   POL: {
     glow: "#8247E5",
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-pol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#c084fc"/><stop offset="100%" stop-color="#8247E5"/></linearGradient></defs><path d="M20 12l-4-2.3-4 2.3v4.6l4 2.3 4-2.3V12zm-4-4l7 4v8l-7 4-7-4v-8l7-4z" fill="url(#l-pol)"/></svg>`,
+    // POL (Polygon 2.0): 3 circles in triangle connected by lines — official POL token mark
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-pol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><line x1="16" y1="8.5" x2="9" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><line x1="16" y1="8.5" x2="23" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><line x1="9" y1="21" x2="23" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="8.5" r="3" fill="url(#l-pol)"/><circle cx="9" cy="21" r="3" fill="url(#l-pol)"/><circle cx="23" cy="21" r="3" fill="url(#l-pol)"/></svg>`,
   },
 };
 
