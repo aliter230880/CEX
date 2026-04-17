@@ -84,9 +84,11 @@ function FloatingGlassTokens() {
       <div style={{ position: "absolute", left: "128px", top: "calc(4% + 63px)", pointerEvents: "none", zIndex: 3 }}>
         <BTCGlass size={190} delay={0}/>
       </div>
-      {/* ETH — top-right: moved +60px more toward center, size −15% = 153px */}
+      {/* ETH — top-right: moved +60px more toward center, size −15% = 153px, +10% vertical */}
       <div style={{ position: "absolute", right: "125px", top: "calc(2% + 60px)", pointerEvents: "none", zIndex: 3 }}>
-        <ETHGlass size={153} delay={1.5}/>
+        <div style={{ transform: "scaleY(1.1)", transformOrigin: "center center" }}>
+          <ETHGlass size={153} delay={1.5}/>
+        </div>
       </div>
       {/* SOL — left mid: unchanged */}
       <div style={{ position: "absolute", left: "60px", top: "50%", pointerEvents: "none", zIndex: 3 }}>
