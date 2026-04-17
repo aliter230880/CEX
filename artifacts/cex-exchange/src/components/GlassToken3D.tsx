@@ -39,11 +39,15 @@ function injectCSS() {
   cssInjected = true;
 }
 
+const PROCESS_RES = 192; // internal canvas resolution — lower = faster processing
+const TARGET_FPS = 20;  // throttle pixel processing to 20 fps
+const FRAME_MS = 1000 / TARGET_FPS;
+
 /** Draw video frames to canvas, removing black/dark background per-pixel */
-function useVideoCanvas(src: string, size: number) {
+function useVideoCanvas(src: string) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const rafRef = useRef<number>(0);
+  const lastFrameRef = useRef<number>(0);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -51,11 +55,10 @@ function useVideoCanvas(src: string, size: number) {
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
 
-    canvas.width = size;
-    canvas.height = size;
+    canvas.width = PROCESS_RES;
+    canvas.height = PROCESS_RES;
 
     const video = document.createElement("video");
-    videoRef.current = video;
     video.src = src;
     video.autoplay = true;
     video.loop = true;
@@ -63,15 +66,16 @@ function useVideoCanvas(src: string, size: number) {
     video.playsInline = true;
     video.crossOrigin = "anonymous";
 
-    function drawFrame() {
-      if (!canvas || !ctx || video.readyState < 2) {
-        rafRef.current = requestAnimationFrame(drawFrame);
-        return;
-      }
-      ctx.clearRect(0, 0, size, size);
-      ctx.drawImage(video, 0, 0, size, size);
+    function drawFrame(now: number) {
+      rafRef.current = requestAnimationFrame(drawFrame);
+      if (video.readyState < 2) return;
+      if (now - lastFrameRef.current < FRAME_MS) return; // throttle
+      lastFrameRef.current = now;
 
-      const imageData = ctx.getImageData(0, 0, size, size);
+      ctx!.clearRect(0, 0, PROCESS_RES, PROCESS_RES);
+      ctx!.drawImage(video, 0, 0, PROCESS_RES, PROCESS_RES);
+
+      const imageData = ctx!.getImageData(0, 0, PROCESS_RES, PROCESS_RES);
       const d = imageData.data;
       for (let i = 0; i < d.length; i += 4) {
         const r = d[i], g = d[i + 1], b = d[i + 2];
@@ -82,8 +86,7 @@ function useVideoCanvas(src: string, size: number) {
           d[i + 3] = Math.round(((brightness - 18) / 32) * 255);
         }
       }
-      ctx.putImageData(imageData, 0, 0);
-      rafRef.current = requestAnimationFrame(drawFrame);
+      ctx!.putImageData(imageData, 0, 0);
     }
 
     video.play().catch(() => {});
@@ -94,7 +97,7 @@ function useVideoCanvas(src: string, size: number) {
       video.pause();
       video.src = "";
     };
-  }, [src, size]);
+  }, [src]);
 
   return canvasRef;
 }
@@ -110,7 +113,7 @@ interface VideoProps {
 
 function GlassToken({ src, size, delay, bobDur, wobbleDur, wobble, glowColor, glowColor2 }: VideoProps) {
   injectCSS();
-  const canvasRef = useVideoCanvas(src, size);
+  const canvasRef = useVideoCanvas(src);
 
   return (
     <div style={{ width: size, height: size, position: "relative" }}>
