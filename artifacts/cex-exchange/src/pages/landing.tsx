@@ -86,7 +86,7 @@ function FloatingGlassTokens() {
       </div>
       {/* ETH — top-right: moved +60px more toward center, size −15% = 153px, +10% vertical */}
       <div style={{ position: "absolute", right: "125px", top: "calc(2% + 60px)", pointerEvents: "none", zIndex: 3 }}>
-        <div style={{ transform: "scaleY(1.1)", transformOrigin: "center center" }}>
+        <div style={{ transform: "scaleY(1.21)", transformOrigin: "center center" }}>
           <ETHGlass size={153} delay={1.5}/>
         </div>
       </div>
