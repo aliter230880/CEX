@@ -80,25 +80,25 @@ function ParticleCanvas() {
 function FloatingGlassTokens() {
   return (
     <>
-      {/* BTC — left, upper */}
-      <div style={{ position: "absolute", left: "-1%", top: "10%", pointerEvents: "none", zIndex: 3 }}>
-        <BTCGlass size={230} delay={0}/>
+      {/* BTC — top-left, large, partially off screen */}
+      <div style={{ position: "absolute", left: "-60px", top: "4%", pointerEvents: "none", zIndex: 3 }}>
+        <BTCGlass size={380} delay={0}/>
       </div>
-      {/* ETH — right, upper */}
-      <div style={{ position: "absolute", right: "-1%", top: "5%", pointerEvents: "none", zIndex: 3 }}>
-        <ETHGlass size={220} delay={1.5}/>
+      {/* ETH — top-right, large, partially off screen */}
+      <div style={{ position: "absolute", right: "-50px", top: "2%", pointerEvents: "none", zIndex: 3 }}>
+        <ETHGlass size={360} delay={1.5}/>
       </div>
-      {/* BNB — right, mid */}
-      <div style={{ position: "absolute", right: "-2%", top: "48%", pointerEvents: "none", zIndex: 3 }}>
-        <BNBGlass size={210} delay={0.8}/>
+      {/* SOL — left, mid-lower, partially off screen */}
+      <div style={{ position: "absolute", left: "-60px", top: "50%", pointerEvents: "none", zIndex: 3 }}>
+        <SOLGlass size={360} delay={2.2}/>
       </div>
-      {/* SOL — left, mid-lower */}
-      <div style={{ position: "absolute", left: "-1%", top: "54%", pointerEvents: "none", zIndex: 3 }}>
-        <SOLGlass size={220} delay={2.2}/>
+      {/* BNB — right, mid-lower, partially off screen */}
+      <div style={{ position: "absolute", right: "-50px", top: "45%", pointerEvents: "none", zIndex: 3 }}>
+        <BNBGlass size={340} delay={0.8}/>
       </div>
-      {/* POL — center-right, bottom */}
-      <div style={{ position: "absolute", left: "60%", top: "76%", pointerEvents: "none", zIndex: 3 }}>
-        <POLGlass size={200} delay={0.4}/>
+      {/* POL — bottom-center */}
+      <div style={{ position: "absolute", left: "50%", bottom: "-30px", transform: "translateX(-50%)", pointerEvents: "none", zIndex: 3 }}>
+        <POLGlass size={320} delay={0.4}/>
       </div>
     </>
   );
