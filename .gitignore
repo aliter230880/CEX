@@ -2,8 +2,9 @@
 
 # compiled output
 dist
-# Allow pre-built frontend for Docker deployment
+# Allow pre-built artifacts for CI deployment
 !artifacts/cex-exchange/dist/
+!artifacts/api-server/dist/
 tmp
 out-tsc
 *.tsbuildinfo
