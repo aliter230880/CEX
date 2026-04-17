@@ -215,7 +215,10 @@ export default function Landing() {
         <div style={{ position: "absolute", left: 0, right: 0, height: 2, background: "linear-gradient(90deg,transparent 0%,rgba(0,255,136,.1) 30%,rgba(0,255,136,.22) 50%,rgba(0,255,136,.1) 70%,transparent 100%)", animation: "scanLine 12s linear infinite" }} />
       </div>
 
-      {/* Floating tokens disabled */}
+      {/* ── Floating 3D glass tokens ── */}
+      <div style={{ position: "fixed", inset: 0, zIndex: 2, pointerEvents: "none", overflow: "hidden" }}>
+        <FloatingGlassTokens/>
+      </div>
 
       {/* ── Navbar ── */}
       <nav style={{ position: "sticky", top: 0, zIndex: 50, background: "rgba(5,9,18,0.75)", backdropFilter: "blur(24px)", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
