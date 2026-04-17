@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATEX — 3D Glass Tokens Превью (объёмные, без фона)</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        :root {
+            --glow-btc: rgba(249, 166, 36, 0.6);
+            --glow-eth: rgba(98, 126, 234, 0.6);
+            --glow-bnb: rgba(240, 185, 11, 0.6);
+            --glow-sol1: rgba(153, 69, 255, 0.6);
+            --glow-sol2: rgba(20, 241, 149, 0.6);
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            background: #050912;
+            color: #fff;
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Основные 3D-анимации */
+        @keyframes gt-bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-28px)} }
+        @keyframes gt-spin { from{transform:rotateY(0deg)} to{transform:rotateY(360deg)} }
+        @keyframes gt-tilt { 0%,100%{transform:rotateX(12deg) rotateZ(-4deg)} 50%{transform:rotateX(-10deg) rotateZ(4deg)} }
+
+        .glass-container {
+            position: absolute;
+            pointer-events: none;
+            mix-blend-mode: screen;
+            filter: brightness(1.4) contrast(1.3) saturate(1.25);
+            perspective: 1200px;           /* ← усиливает 3D-объём */
+            perspective-origin: 50% 50%;
+        }
+
+        .glass {
+            width: 100%;
+            height: 100%;
+            animation: gt-bob 4.8s ease-in-out infinite;
+            transform-style: preserve-3d;
+        }
+
+        .glass-inner {
+            animation: gt-spin 14s linear infinite;
+            transform-style: preserve-3d;
+        }
+
+        .glass-tilt {
+            animation: gt-tilt 5.2s ease-in-out infinite;
+            transform-style: preserve-3d;
+            box-shadow: 
+                0 0 60px 20px var(--glow-color),
+                inset 0 0 80px 30px rgba(255,255,255,0.25);
+            filter: drop-shadow(0 30px 30px rgba(0,0,0,0.6));
+        }
+
+        /* Glow-подсветка */
+        .glow {
+            position: absolute;
+            inset: -50%;
+            background: radial-gradient(circle at 50% 50%, var(--glow-color) 0%, transparent 65%);
+            opacity: 0.85;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Canvas с частицами */
+        #particles {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .hero {
+            position: relative;
+            z-index: 10;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .logo {
+            font-size: 52px;
+            font-weight:
