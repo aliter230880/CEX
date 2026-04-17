@@ -42,7 +42,7 @@ jobs:
           echo "  Ожидание одобрения в GitHub Environments"
           echo "============================================"
 
-  # ─── ШАГ 2: Собрать фронтенд на CI и задеплоить ───────────────────────────
+  # ─── ШАГ 2: Собрать ВСЁ на CI, закоммитить, задеплоить ───────────────────
   build-and-deploy:
     name: Сборка и деплой
     runs-on: ubuntu-latest
@@ -73,32 +73,36 @@ jobs:
       - name: Собрать фронтенд (Vite)
         run: pnpm --filter @workspace/cex-exchange run build
 
-      - name: Закоммитить собранный фронтенд в репо
+      - name: Собрать API (TypeScript → JS)
+        run: pnpm --filter @workspace/api-server run build
+
+      - name: Закоммитить собранные артефакты в репо
         run: |
           git config user.email "ci@atex.exchange"
           git config user.name "ATEX CI"
-          # Принудительно добавляем dist (даже если в .gitignore)
+          # Принудительно добавляем оба dist (даже если в .gitignore)
           git add -f artifacts/cex-exchange/dist/
+          git add -f artifacts/api-server/dist/
           # Коммитим только если есть изменения; [skip ci] — не триггерит новый деплой
           if git diff --staged --quiet; then
-            echo "Фронтенд не изменился, коммит не нужен"
+            echo "Артефакты не изменились, коммит не нужен"
           else
-            git commit -m "ci: pre-built frontend dist [skip ci]"
+            git commit -m "ci: pre-built frontend + api dist [skip ci]"
             git push origin main
           fi
 
-      - name: Деплой на сервер (git pull + API build + PM2)
+      - name: Деплой на сервер (только git pull + DB + PM2)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          command_timeout: 15m
+          command_timeout: 5m
           script: |
             set -e
             cd /root/nexex
 
-            echo "=== git sync (включая готовый dist фронтенда) ==="
+            echo "=== git sync (фронтенд + API уже скомпилированы) ==="
             git fetch origin main
             git reset --hard origin/main
 
@@ -114,9 +118,6 @@ jobs:
             DATABASE_URL=$(grep '^DATABASE_URL=' .env | head -1 | cut -d'=' -f2-)
             export DATABASE_URL
             pnpm --filter @workspace/db run push
-
-            echo "=== сборка API (быстро) ==="
-            pnpm --filter @workspace/api-server run build
 
             echo "=== копирование логотипа ==="
             if [ -f /root/nexex/logo.png ]; then
