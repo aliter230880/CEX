@@ -19,18 +19,18 @@ const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
   },
   BNB: {
     glow: "#F0B90B",
-    // BNB: 5 diamonds — 4 outer (N/E/S/W) + 1 center, rotated 45°
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-bnb" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#ffe066"/><stop offset="100%" stop-color="#F0B90B"/></linearGradient></defs><path d="M16 6.5l3.2 3.2-3.2 3.2-3.2-3.2L16 6.5zM7.5 15l3.2-3.2 3.2 3.2-3.2 3.2L7.5 15zM24.5 15l-3.2 3.2-3.2-3.2 3.2-3.2L24.5 15zM16 18.1l3.2 3.2-3.2 3.2-3.2-3.2L16 18.1zM16 12l3 3-3 3-3-3 3-3z" fill="url(#l-bnb)"/></svg>`,
+    // BNB: gold circle + 5 connected white diamonds (center + N/E/S/W)
+    svg: `<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" fill="#F0B90B"/><path d="M16 5.5L19.5 9 16 12.5 12.5 9 16 5.5zM16 19.5L19.5 23 16 26.5 12.5 23 16 19.5zM5.5 16L9 12.5 12.5 16 9 19.5 5.5 16zM19.5 16L23 12.5 26.5 16 23 19.5 19.5 16zM16 12.5L19.5 16 16 19.5 12.5 16 16 12.5z" fill="white"/></svg>`,
   },
   SOL: {
     glow: "#9945FF",
-    // SOL: 3 parallelogram bars — top slants right, middle left, bottom right (official Solana shape)
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#9945FF"/><stop offset="100%" stop-color="#14F195"/></linearGradient></defs><path d="M8 9.5h14l-2.5 3H8l2.5-3zM8 14.5h14l2.5 3H10.5L8 14.5zM8 19.5h14l-2.5 3H8l2.5-3z" fill="url(#l-sol)"/></svg>`,
+    // SOL: 3 parallelogram bars all slanting same direction, teal→purple gradient
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00FFA3"/><stop offset="100%" stop-color="#DC1FFF"/></linearGradient></defs><path d="M4 8.5L22 8.5 26 13 8 13 4 8.5zM6 15L24 15 28 19.5 10 19.5 6 15zM4 21.5L22 21.5 26 26 8 26 4 21.5z" fill="url(#l-sol)"/></svg>`,
   },
   POL: {
     glow: "#8247E5",
-    // POL (Polygon 2.0): 3 circles in triangle connected by lines — official POL token mark
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-pol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><line x1="16" y1="8.5" x2="9" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><line x1="16" y1="8.5" x2="23" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><line x1="9" y1="21" x2="23" y2="21" stroke="url(#l-pol)" stroke-width="2.2" stroke-linecap="round"/><circle cx="16" cy="8.5" r="3" fill="url(#l-pol)"/><circle cx="9" cy="21" r="3" fill="url(#l-pol)"/><circle cx="23" cy="21" r="3" fill="url(#l-pol)"/></svg>`,
+    // POL (Polygon): two connected hexagon rings
+    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-pol" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a855f7"/><stop offset="100%" stop-color="#7c3aed"/></linearGradient></defs><polygon points="9.5,7.5 4,10.7 4,17.2 9.5,20.4 15,17.2 15,10.7" fill="none" stroke="url(#l-pol)" stroke-width="2.6" stroke-linejoin="round"/><polygon points="22.5,7.5 17,10.7 17,17.2 22.5,20.4 28,17.2 28,10.7" fill="none" stroke="url(#l-pol)" stroke-width="2.6" stroke-linejoin="round"/></svg>`,
   },
 };
 
