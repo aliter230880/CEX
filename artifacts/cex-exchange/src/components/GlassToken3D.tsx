@@ -68,7 +68,7 @@ function useVideoCanvas(src: string) {
 
     function drawFrame(now: number) {
       rafRef.current = requestAnimationFrame(drawFrame);
-      if (video.readyState < 2) return;
+      if (video.readyState < 2 || video.seeking) return; // skip incomplete frames
       if (now - lastFrameRef.current < FRAME_MS) return; // throttle
       lastFrameRef.current = now;
 
