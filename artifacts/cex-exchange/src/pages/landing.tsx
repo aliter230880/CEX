@@ -24,13 +24,11 @@ const TOKEN_SVGS: Record<string, { svg: string; glow: string }> = {
   },
   SOL: {
     glow: "#9945FF",
-    // SOL: 3 rounded pill bars (rx caps), slanted left via skewX(-15), teal→pink diagonal gradient
-    svg: `<svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id="l-sol" x1="0" y1="7" x2="22" y2="27.5" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#00FFA3"/><stop offset="50%" stop-color="#9945FF"/><stop offset="100%" stop-color="#DC1FFF"/></linearGradient></defs><g transform="translate(8,0) skewX(-15)" fill="url(#l-sol)"><rect x="0" y="7" width="22" height="5.5" rx="2.75"/><rect x="0" y="14.5" width="22" height="5.5" rx="2.75"/><rect x="0" y="22" width="22" height="5.5" rx="2.75"/></g></svg>`,
+    svg: `<img src="/token-icons/sol.svg" width="20" height="20" style="object-fit:contain;display:block"/>`,
   },
   POL: {
     glow: "#8247E5",
-    // POL: two hex rings diagonal (upper-left + lower-right) with S-connector bridge, even-odd holes
-    svg: `<svg viewBox="0 0 32 32" fill="#7B3FE4" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M4.37 8.75 L10 5.5 L15.63 8.75 C18 7.5 22 10 22 13.5 L27.63 16.75 L27.63 23.25 L22 26.5 L16.37 23.25 C13 25 10 23 10 18.5 L4.37 15.25 Z M10 8.2 L13.29 10.1 L13.29 13.9 L10 15.8 L6.71 13.9 L6.71 10.1 Z M22 16.2 L25.29 18.1 L25.29 21.9 L22 23.8 L18.71 21.9 L18.71 18.1 Z"/></svg>`,
+    svg: `<img src="/token-icons/pol.svg" width="20" height="20" style="object-fit:contain;display:block"/>`,
   },
 };
 
