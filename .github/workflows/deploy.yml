@@ -72,13 +72,14 @@ jobs:
           echo "Размер архива: $(du -sh frontend-dist.tar.gz | cut -f1)"
 
       - name: Скопировать архив на VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          password: ${{ secrets.VPS_PASSWORD }}
-          source: "frontend-dist.tar.gz"
-          target: "/tmp/"
+        run: |
+          sudo apt-get install -y sshpass -q
+          sshpass -e scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 \
+            frontend-dist.tar.gz \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/frontend-dist.tar.gz
+          echo "Архив скопирован на сервер"
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
 
       - name: Обновить и перезапустить сервер
         uses: appleboy/ssh-action@v1.0.3
