@@ -68,8 +68,8 @@ jobs:
 
       - name: Упаковать фронтенд в архив
         run: |
-          tar -czf /tmp/frontend-dist.tar.gz -C artifacts/cex-exchange/dist/public .
-          echo "Размер архива: $(du -sh /tmp/frontend-dist.tar.gz | cut -f1)"
+          tar -czf frontend-dist.tar.gz -C artifacts/cex-exchange/dist/public .
+          echo "Размер архива: $(du -sh frontend-dist.tar.gz | cut -f1)"
 
       - name: Скопировать архив на VPS
         uses: appleboy/scp-action@v0.1.7
@@ -77,9 +77,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          source: "/tmp/frontend-dist.tar.gz"
+          source: "frontend-dist.tar.gz"
           target: "/tmp/"
-          strip_components: 2
 
       - name: Обновить и перезапустить сервер
         uses: appleboy/ssh-action@v1.0.3
