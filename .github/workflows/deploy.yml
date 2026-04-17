@@ -88,6 +88,8 @@ jobs:
             echo "Артефакты не изменились, коммит не нужен"
           else
             git commit -m "ci: pre-built frontend + api dist [skip ci]"
+            # Подтягиваем возможные новые коммиты перед пушем (rebase сохраняет наш коммит сверху)
+            git pull --rebase origin main
             git push origin main
           fi
 
