@@ -86782,12 +86782,14 @@ var COINGECKO_IDS = {
   "UNI/USDT": "uniswap"
 };
 var LUX_PRICE_USDT = 0.01;
-function setLuxPrice(price) {
-  LUX_PRICE_USDT = price;
+var LUX_PRICE_POL = 0.11;
+function setLuxPrice(usdt, pol) {
+  LUX_PRICE_USDT = usdt;
+  if (pol) LUX_PRICE_POL = pol;
+  updateDerivedPrices();
 }
 function updateDerivedPrices() {
   const ethPrice = PRICE_CACHE["ETH/USDT"]?.price ?? 2363;
-  const polPrice = PRICE_CACHE["POL/USDT"]?.price ?? 0.9;
   PRICE_CACHE["USDC/USDT"] = {
     price: 1,
     change24h: 0,
@@ -86805,7 +86807,7 @@ function updateDerivedPrices() {
     low24h: usdt2eth * 0.98,
     volume24h: 0
   };
-  const pol2lux = polPrice / LUX_PRICE_USDT;
+  const pol2lux = 1 / LUX_PRICE_POL;
   PRICE_CACHE["POL/LUX"] = {
     price: pol2lux,
     change24h: 0,
@@ -86825,6 +86827,7 @@ function updateDerivedPrices() {
   };
 }
 var PRICE_CACHE = {};
+updateDerivedPrices();
 function getRealPrice(pair) {
   return PRICE_CACHE[pair]?.price ?? null;
 }
@@ -88900,6 +88903,7 @@ async function seedData() {
 // src/lib/bot-service.ts
 var LUXEX_CONTRACT = "0xe5646EBf223499E0d15Af09F8e42cC6586B0512b";
 var POLYGON_USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+var POLYGON_POL = "0x0000000000000000000000000000000000001010";
 var LUXEX_ABI2 = [
   {
     inputs: [{ name: "token", type: "address" }],
@@ -88919,21 +88923,23 @@ async function fetchLuxPriceFromChain() {
     try {
       const provider = new ethers_exports.JsonRpcProvider(rpc, 137, { batchMaxCount: 1 });
       const contract = new ethers_exports.Contract(LUXEX_CONTRACT, LUXEX_ABI2, provider);
-      const priceWei = await Promise.race([
-        contract.getPrice(POLYGON_USDT),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8e3))
+      const timeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8e3))]);
+      const [usdtWei, polWei] = await Promise.all([
+        timeout(contract.getPrice(POLYGON_USDT)),
+        timeout(contract.getPrice(POLYGON_POL))
       ]);
-      const price = Number(priceWei) / 1e6;
-      if (price > 0) {
-        logger.info({ rpc, priceUSDT: price }, "LUX price fetched from LuxEx chain");
-        return price;
+      const usdt = Number(usdtWei) / 1e6;
+      const pol = Number(polWei) / 1e18;
+      if (usdt > 0 && pol > 0) {
+        logger.info({ rpc, priceUSDT: usdt, pricePOL: pol }, "LUX rates fetched from LuxEx chain");
+        return { usdt, pol };
       }
     } catch (err) {
       logger.warn({ rpc, err }, "LuxEx RPC failed, trying next");
     }
   }
-  logger.warn("All Polygon RPCs failed \u2014 using default LUX price $0.0100");
-  return 0.01;
+  logger.warn("All Polygon RPCs failed \u2014 using default LUX rates");
+  return { usdt: 0.01, pol: 0.11 };
 }
 var BOT_USERS = [
   {
@@ -89178,9 +89184,9 @@ async function startBotService() {
       return;
     }
     botUserIds = ids;
-    const luxStartPrice = await fetchLuxPriceFromChain();
-    luxSim = new LuxPriceSimulator(luxStartPrice);
-    setLuxPrice(luxStartPrice);
+    const luxRates = await fetchLuxPriceFromChain();
+    luxSim = new LuxPriceSimulator(luxRates.usdt);
+    setLuxPrice(luxRates.usdt, luxRates.pol);
     isRunning = true;
     runLoop().catch((err) => {
       logger.error({ err }, "Bot loop crashed unexpectedly");
