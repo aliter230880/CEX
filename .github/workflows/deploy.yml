@@ -94,20 +94,23 @@ jobs:
             git push origin main
           fi
 
-      - name: Деплой на сервер (только git pull + DB + PM2)
+      - name: Деплой на сервер (git pull + build + DB + PM2)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           password: ${{ secrets.VPS_PASSWORD }}
-          command_timeout: 5m
+          command_timeout: 8m
           script: |
             set -e
             cd /root/nexex
 
-            echo "=== git sync (фронтенд + API уже скомпилированы) ==="
+            echo "=== git sync ==="
             git fetch origin main
             git reset --hard origin/main
+
+            echo "=== сборка API на сервере (гарантированно актуальный код) ==="
+            timeout 120 pnpm --filter @workspace/api-server build
 
             echo "=== установка ADMIN_PASSWORD ==="
             HASH='$2b$12$KaZD8ignMUIPJ7pXoJ9Vp.nq9GXv8S9ybJ07TQV4rlBIobgLS3U8O'
