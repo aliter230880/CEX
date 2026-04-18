@@ -260,6 +260,102 @@ async function updateLatestCandleForInterval(pair: string, coinId: string, days:
     );
 }
 
+// Pairs whose prices are derived from other pairs (not from CoinGecko directly)
+const DERIVED_PAIRS = ["USDC/USDT", "USDT/ETH", "POL/LUX", "USDC/LUX"];
+
+// Noise amplitude per pair type (stablecoins have tiny noise, inverse pairs moderate)
+const DERIVED_NOISE: Record<string, number> = {
+  "USDC/USDT": 0.001,  // ±0.1% — stablecoin
+  "USDT/ETH":  0.004,  // ±0.4% — inverse of ETH
+  "POL/LUX":   0.02,   // ±2%   — LUX cross pair
+  "USDC/LUX":  0.01,   // ±1%   — LUX cross pair
+};
+
+/**
+ * Generate or update klines for derived pairs (not available from CoinGecko).
+ * Seeds historical klines if missing, and always updates the current live candle.
+ * Runs on the same schedule as CoinGecko candle updates.
+ */
+async function updateDerivedPairKlines(): Promise<void> {
+  const now = Date.now();
+  const intervals: Array<{ label: string; ms: number; historyCount: number }> = [
+    { label: "30m", ms: 30 * 60 * 1000,         historyCount: 100 },
+    { label: "1h",  ms: 60 * 60 * 1000,         historyCount: 72  },
+    { label: "1d",  ms: 24 * 60 * 60 * 1000,    historyCount: 30  },
+  ];
+
+  for (const pair of DERIVED_PAIRS) {
+    const stats = PRICE_CACHE[pair];
+    if (!stats || stats.price <= 0) continue;
+    const basePrice = stats.price;
+    const noise = DERIVED_NOISE[pair] ?? 0.005;
+
+    for (const { label, ms, historyCount } of intervals) {
+      try {
+        const currentSlot = Math.floor(now / ms) * ms;
+
+        // Seed historical klines (onConflictDoNothing — won't overwrite correct data)
+        let price = basePrice * 0.97; // start slightly below current price
+        for (let i = historyCount; i > 0; i--) {
+          const openTime  = currentSlot - i * ms;
+          const closeTime = openTime + ms - 1;
+          const change = (Math.random() - 0.48) * noise; // slight upward bias
+          const open  = price;
+          const close = price * (1 + change);
+          const high  = Math.max(open, close) * (1 + Math.random() * noise * 0.3);
+          const low   = Math.min(open, close) * (1 - Math.random() * noise * 0.3);
+          price = close;
+
+          await db
+            .insert(klinesTable)
+            .values({
+              pair, interval: label, openTime, closeTime,
+              open:  open.toFixed(8),
+              high:  high.toFixed(8),
+              low:   low.toFixed(8),
+              close: close.toFixed(8),
+              volume: "0",
+            })
+            .onConflictDoNothing();
+        }
+
+        // Always update the current live candle with the latest price
+        const open  = basePrice * (1 + (Math.random() - 0.5) * noise);
+        const close = basePrice * (1 + (Math.random() - 0.5) * noise);
+        const high  = Math.max(open, close) * (1 + Math.random() * noise * 0.3);
+        const low   = Math.min(open, close) * (1 - Math.random() * noise * 0.3);
+
+        await db
+          .insert(klinesTable)
+          .values({
+            pair, interval: label,
+            openTime: currentSlot, closeTime: currentSlot + ms - 1,
+            open:  open.toFixed(8),
+            high:  high.toFixed(8),
+            low:   low.toFixed(8),
+            close: close.toFixed(8),
+            volume: "0",
+          })
+          .onConflictDoNothing();
+
+        await db
+          .update(klinesTable)
+          .set({ high: high.toFixed(8), low: low.toFixed(8), close: close.toFixed(8) })
+          .where(
+            and(
+              eq(klinesTable.pair, pair),
+              eq(klinesTable.interval, label),
+              eq(klinesTable.openTime, currentSlot),
+            ),
+          );
+      } catch (err) {
+        logger.warn({ pair, interval: label, err }, "Failed to update derived kline");
+      }
+    }
+  }
+  logger.debug({ pairs: DERIVED_PAIRS }, "Derived pair klines updated");
+}
+
 async function updateLatestCandles(): Promise<void> {
   for (const [pair, coinId] of Object.entries(COINGECKO_IDS)) {
     try {
@@ -271,6 +367,9 @@ async function updateLatestCandles(): Promise<void> {
       logger.warn({ pair, err }, "Failed to update latest candles");
     }
   }
+
+  // Also update klines for derived pairs (USDC/USDT, USDT/ETH, etc.)
+  await updateDerivedPairKlines();
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +478,17 @@ export async function startPriceFeed(): Promise<void> {
   } catch (err) {
     logger.warn({ err }, "Initial custom token price fetch failed");
   }
+
+  // Seed / fix klines for derived pairs (USDT/ETH, USDC/USDT, etc.) at startup
+  // Runs in background so server startup isn't delayed
+  (async () => {
+    try {
+      await updateDerivedPairKlines();
+      logger.info("Derived pair klines seeded at startup");
+    } catch (err) {
+      logger.warn({ err }, "Derived pair klines startup seed failed");
+    }
+  })();
 
   // Sync klines in background (runs once, takes a while due to rate limits)
   const pairs = await db.select().from(tradingPairsTable);
