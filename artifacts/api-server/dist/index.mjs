@@ -24969,7 +24969,7 @@ var require_atomic_sleep = __commonJS({
   "../../node_modules/.pnpm/atomic-sleep@1.0.0/node_modules/atomic-sleep/index.js"(exports, module) {
     "use strict";
     if (typeof SharedArrayBuffer !== "undefined" && typeof Atomics !== "undefined") {
-      let sleep = function(ms) {
+      let sleep2 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -24980,9 +24980,9 @@ var require_atomic_sleep = __commonJS({
         Atomics.wait(nil, 0, 0, Number(ms));
       };
       const nil = new Int32Array(new SharedArrayBuffer(4));
-      module.exports = sleep;
+      module.exports = sleep2;
     } else {
-      let sleep = function(ms) {
+      let sleep2 = function(ms) {
         const valid = ms > 0 && ms < Infinity;
         if (valid === false) {
           if (typeof ms !== "number" && typeof ms !== "bigint") {
@@ -24994,7 +24994,7 @@ var require_atomic_sleep = __commonJS({
         while (target > Date.now()) {
         }
       };
-      module.exports = sleep;
+      module.exports = sleep2;
     }
   }
 });
@@ -25007,7 +25007,7 @@ var require_sonic_boom = __commonJS({
     var EventEmitter = __require("events");
     var inherits = __require("util").inherits;
     var path2 = __require("path");
-    var sleep = require_atomic_sleep();
+    var sleep2 = require_atomic_sleep();
     var assert3 = __require("assert");
     var BUSY_WRITE_TIMEOUT = 100;
     var kEmptyBuffer = Buffer.allocUnsafe(0);
@@ -25153,7 +25153,7 @@ var require_sonic_boom = __commonJS({
           if ((err.code === "EAGAIN" || err.code === "EBUSY") && this.retryEAGAIN(err, this._writingBuf.length, this._len - this._writingBuf.length)) {
             if (this.sync) {
               try {
-                sleep(BUSY_WRITE_TIMEOUT);
+                sleep2(BUSY_WRITE_TIMEOUT);
                 this.release(void 0, 0);
               } catch (err2) {
                 this.release(err2);
@@ -25466,7 +25466,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep(BUSY_WRITE_TIMEOUT);
+          sleep2(BUSY_WRITE_TIMEOUT);
         }
       }
       try {
@@ -25503,7 +25503,7 @@ var require_sonic_boom = __commonJS({
           if (shouldRetry && !this.retryEAGAIN(err, buf.length, this._len - buf.length)) {
             throw err;
           }
-          sleep(BUSY_WRITE_TIMEOUT);
+          sleep2(BUSY_WRITE_TIMEOUT);
         }
       }
     }
@@ -26244,7 +26244,7 @@ var require_transport = __commonJS({
     var { createRequire } = __require("module");
     var getCallers = require_caller();
     var { join, isAbsolute, sep } = __require("node:path");
-    var sleep = require_atomic_sleep();
+    var sleep2 = require_atomic_sleep();
     var onExit = require_on_exit_leak_free();
     var ThreadStream = require_thread_stream();
     function setupOnExit(stream) {
@@ -26278,7 +26278,7 @@ var require_transport = __commonJS({
           return;
         }
         stream.flushSync();
-        sleep(100);
+        sleep2(100);
         stream.end();
       }
       return stream;
@@ -88840,6 +88840,250 @@ async function seedData() {
   }
 }
 
+// src/lib/bot-service.ts
+var BOT_USERS = [
+  {
+    email: "bot1@atex.internal",
+    username: "_MarketBot_A",
+    password: "xK9#mPw2@vL5nQ8!zt"
+  },
+  {
+    email: "bot2@atex.internal",
+    username: "_MarketBot_B",
+    password: "rT7$hJs3@nK6pM4!qw"
+  }
+];
+var BOT_STARTING_BALANCES = {
+  USDT: 1e7,
+  BTC: 200,
+  ETH: 4e3,
+  BNB: 2e4,
+  POL: 2e6,
+  SOL: 4e4,
+  LUX: 5e8
+};
+var REFILL_THRESHOLD_RATIO = 0.1;
+var PAIRS2 = [
+  "BTC/USDT",
+  "ETH/USDT",
+  "BNB/USDT",
+  "POL/USDT",
+  "SOL/USDT",
+  "LUX/USDT"
+];
+var PAIR_VOLUME = {
+  "BTC/USDT": { min: 5e-4, max: 0.05 },
+  "ETH/USDT": { min: 5e-3, max: 0.5 },
+  "BNB/USDT": { min: 0.05, max: 5 },
+  "POL/USDT": { min: 20, max: 1e3 },
+  "SOL/USDT": { min: 0.1, max: 15 },
+  "LUX/USDT": { min: 5e3, max: 2e5 }
+};
+var LuxPriceSimulator = class {
+  price;
+  phase;
+  lastUpdate;
+  // Slow oscillation: 8-hour period, 5% amplitude
+  periodMs = 8 * 60 * 60 * 1e3;
+  trendAmplitude = 0.05;
+  // Micro upward drift per tick: accumulates to ~2% growth per day at 60s intervals
+  driftPerTick = 23e-6;
+  constructor(startPrice) {
+    this.price = startPrice;
+    this.phase = Math.random() * Math.PI * 2;
+    this.lastUpdate = Date.now();
+  }
+  next() {
+    const now = Date.now();
+    const dtMs = now - this.lastUpdate;
+    this.lastUpdate = now;
+    this.phase += dtMs / this.periodMs * Math.PI * 2;
+    const trend = Math.sin(this.phase) * this.trendAmplitude * 0.01;
+    const noise = (Math.random() - 0.5) * 5e-3;
+    const drift = this.driftPerTick;
+    this.price = this.price * (1 + trend + noise + drift);
+    this.price = Math.max(1e-4, this.price);
+    return this.price;
+  }
+  current() {
+    return this.price;
+  }
+};
+var luxSim = null;
+var botUserIds = null;
+var isRunning = false;
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+function randInt(min, max) {
+  return Math.floor(rand(min, max + 1));
+}
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+async function ensureBalance(userId, asset, startingAmount) {
+  const [bal] = await db.select().from(balancesTable).where(and(eq(balancesTable.userId, userId), eq(balancesTable.asset, asset)));
+  const threshold = startingAmount * REFILL_THRESHOLD_RATIO;
+  if (!bal) {
+    await db.insert(balancesTable).values({
+      userId,
+      asset,
+      available: startingAmount.toFixed(8),
+      locked: "0"
+    });
+  } else if (parseFloat(bal.available) + parseFloat(bal.locked) < threshold) {
+    await db.update(balancesTable).set({
+      available: (parseFloat(bal.available) + startingAmount).toFixed(8)
+    }).where(eq(balancesTable.id, bal.id));
+    logger.info({ userId, asset, refillAmount: startingAmount }, "Bot balance refilled");
+  }
+}
+async function placeOrder(userId, pair, side, price, quantity) {
+  const [baseAsset, quoteAsset] = pair.split("/");
+  const lockAsset = side === "buy" ? quoteAsset : baseAsset;
+  const lockAmount = side === "buy" ? quantity * price : quantity;
+  const [bal] = await db.select().from(balancesTable).where(and(eq(balancesTable.userId, userId), eq(balancesTable.asset, lockAsset)));
+  if (!bal || parseFloat(bal.available) < lockAmount) {
+    logger.warn(
+      { userId, pair, side, lockAsset, need: lockAmount, have: bal?.available ?? 0 },
+      "Bot insufficient balance \u2014 skipping"
+    );
+    return null;
+  }
+  await db.update(balancesTable).set({
+    available: (parseFloat(bal.available) - lockAmount).toFixed(8),
+    locked: (parseFloat(bal.locked) + lockAmount).toFixed(8)
+  }).where(eq(balancesTable.id, bal.id));
+  const [order] = await db.insert(ordersTable).values({
+    userId,
+    pair,
+    side,
+    type: "limit",
+    price: price.toFixed(8),
+    quantity: quantity.toFixed(8),
+    filled: "0",
+    total: (quantity * price).toFixed(8),
+    status: "open"
+  }).returning();
+  return order?.id ?? null;
+}
+async function cancelOrder(orderId, userId, pair, side, price, quantity) {
+  const [baseAsset, quoteAsset] = pair.split("/");
+  const unlockAsset = side === "buy" ? quoteAsset : baseAsset;
+  const unlockAmount = side === "buy" ? quantity * price : quantity;
+  const [bal] = await db.select().from(balancesTable).where(and(eq(balancesTable.userId, userId), eq(balancesTable.asset, unlockAsset)));
+  if (bal) {
+    await db.update(balancesTable).set({
+      available: (parseFloat(bal.available) + unlockAmount).toFixed(8),
+      locked: Math.max(0, parseFloat(bal.locked) - unlockAmount).toFixed(8)
+    }).where(eq(balancesTable.id, bal.id));
+  }
+  await db.update(ordersTable).set({ status: "cancelled", updatedAt: /* @__PURE__ */ new Date() }).where(eq(ordersTable.id, orderId));
+}
+async function simulatePairTrade(pair) {
+  if (!botUserIds) return;
+  const [botAId, botBId] = botUserIds;
+  let midPrice;
+  if (pair === "LUX/USDT" && luxSim) {
+    midPrice = luxSim.next();
+  } else {
+    const marketPrice = getSeedPrice(pair);
+    const variation = (Math.random() - 0.5) * 4e-3;
+    midPrice = marketPrice * (1 + variation);
+  }
+  if (!midPrice || midPrice <= 0) return;
+  const volRange = PAIR_VOLUME[pair] ?? { min: 1, max: 10 };
+  const quantity = rand(volRange.min, volRange.max);
+  const spread = midPrice * 8e-4;
+  const sellPrice = midPrice + spread / 2;
+  const buyPrice = midPrice + spread;
+  const baseAsset = pair.split("/")[0];
+  const quoteAsset = pair.split("/")[1];
+  await ensureBalance(botAId, baseAsset, BOT_STARTING_BALANCES[baseAsset] ?? 1e4);
+  await ensureBalance(botAId, quoteAsset, BOT_STARTING_BALANCES[quoteAsset] ?? 1e6);
+  await ensureBalance(botBId, baseAsset, BOT_STARTING_BALANCES[baseAsset] ?? 1e4);
+  await ensureBalance(botBId, quoteAsset, BOT_STARTING_BALANCES[quoteAsset] ?? 1e6);
+  const aIsSeller = Math.random() > 0.5;
+  const sellerId = aIsSeller ? botAId : botBId;
+  const buyerId = aIsSeller ? botBId : botAId;
+  const sellOrderId = await placeOrder(sellerId, pair, "sell", sellPrice, quantity);
+  if (!sellOrderId) return;
+  await sleep(150 + Math.random() * 300);
+  const buyOrderId = await placeOrder(buyerId, pair, "buy", buyPrice, quantity);
+  if (!buyOrderId) {
+    await cancelOrder(sellOrderId, sellerId, pair, "sell", sellPrice, quantity);
+    return;
+  }
+  await matchOrders(buyOrderId);
+  logger.info(
+    {
+      pair,
+      price: midPrice.toFixed(pair === "LUX/USDT" ? 6 : 2),
+      qty: quantity.toFixed(4),
+      seller: sellerId,
+      buyer: buyerId
+    },
+    "Bot trade executed"
+  );
+}
+async function runLoop() {
+  await sleep(rand(5e3, 15e3));
+  while (isRunning) {
+    const pair = PAIRS2[randInt(0, PAIRS2.length - 1)];
+    try {
+      await simulatePairTrade(pair);
+    } catch (err) {
+      logger.error({ err, pair }, "Bot simulation error \u2014 continuing");
+    }
+    const delay = randInt(3e4, 9e4);
+    await sleep(delay);
+  }
+}
+async function initBotUsers() {
+  const ids = [];
+  for (const cfg of BOT_USERS) {
+    try {
+      let [user] = await db.select().from(usersTable).where(eq(usersTable.email, cfg.email));
+      if (!user) {
+        const passwordHash = await bcryptjs_default.hash(cfg.password, 10);
+        const [created] = await db.insert(usersTable).values({ email: cfg.email, username: cfg.username, passwordHash }).returning();
+        user = created;
+        logger.info({ email: cfg.email }, "Bot user created");
+      }
+      if (!user) throw new Error("Failed to create bot user");
+      ids.push(user.id);
+      for (const [asset, amount] of Object.entries(BOT_STARTING_BALANCES)) {
+        await ensureBalance(user.id, asset, amount);
+      }
+    } catch (err) {
+      logger.error({ err, email: cfg.email }, "Failed to init bot user");
+    }
+  }
+  if (ids.length < 2) return null;
+  return [ids[0], ids[1]];
+}
+async function startBotService() {
+  if (isRunning) return;
+  logger.info("Initializing bot trading service...");
+  try {
+    const ids = await initBotUsers();
+    if (!ids) {
+      logger.error("Bot users could not be initialized \u2014 bot service disabled");
+      return;
+    }
+    botUserIds = ids;
+    luxSim = new LuxPriceSimulator(0.01);
+    isRunning = true;
+    runLoop().catch((err) => {
+      logger.error({ err }, "Bot loop crashed unexpectedly");
+      isRunning = false;
+    });
+    logger.info({ botA: ids[0], botB: ids[1] }, "Bot trading service started \u2713");
+  } catch (err) {
+    logger.error({ err }, "Bot service startup failed");
+  }
+}
+
 // src/index.ts
 (function loadDotEnv() {
   const envPath = resolve(process.cwd(), ".env");
@@ -88880,6 +89124,7 @@ app_default.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   seedData();
   startPriceFeed().catch((err2) => logger.error({ err: err2 }, "Price feed failed to start"));
+  startBotService().catch((err2) => logger.error({ err: err2 }, "Bot service failed to start"));
   if (process.env.WALLET_MNEMONIC) {
     startDepositMonitor();
   } else {
