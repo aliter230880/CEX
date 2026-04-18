@@ -19,6 +19,7 @@ import { ethers } from "ethers";
 import { matchOrders } from "./matching-engine";
 import { logger } from "./logger";
 import { getSeedPrice } from "./market-data";
+import { setLuxPrice } from "./price-feed";
 
 // ─── LuxEx on-chain price oracle ─────────────────────────────────────────────
 
@@ -81,11 +82,13 @@ const BOT_USERS = [
 // Large starting balances — enough for months of trading without running dry
 const BOT_STARTING_BALANCES: Record<string, number> = {
   USDT: 10_000_000,
+  USDC: 5_000_000,
   BTC: 200,
   ETH: 4_000,
   BNB: 20_000,
   POL: 2_000_000,
   SOL: 40_000,
+  UNI: 500_000,
   LUX: 500_000_000,
 };
 
@@ -101,16 +104,26 @@ const PAIRS = [
   "POL/USDT",
   "SOL/USDT",
   "LUX/USDT",
+  "UNI/USDT",
+  "USDC/USDT",
+  "USDT/ETH",
+  "POL/LUX",
+  "USDC/LUX",
 ];
 
 // Trade volume per pair (base asset quantity per trade)
 const PAIR_VOLUME: Record<string, { min: number; max: number }> = {
-  "BTC/USDT":  { min: 0.0005, max: 0.05  },
-  "ETH/USDT":  { min: 0.005,  max: 0.5   },
-  "BNB/USDT":  { min: 0.05,   max: 5     },
-  "POL/USDT":  { min: 20,     max: 1000  },
-  "SOL/USDT":  { min: 0.1,    max: 15    },
+  "BTC/USDT":  { min: 0.0005, max: 0.05    },
+  "ETH/USDT":  { min: 0.005,  max: 0.5     },
+  "BNB/USDT":  { min: 0.05,   max: 5       },
+  "POL/USDT":  { min: 20,     max: 1000    },
+  "SOL/USDT":  { min: 0.1,    max: 15      },
   "LUX/USDT":  { min: 5000,   max: 200_000 },
+  "UNI/USDT":  { min: 5,      max: 500     },
+  "USDC/USDT": { min: 100,    max: 10_000  },
+  "USDT/ETH":  { min: 100,    max: 5_000   },
+  "POL/LUX":   { min: 50,     max: 2_000   },
+  "USDC/LUX":  { min: 10,     max: 500     },
 };
 
 // ─── LUX Price Simulator ──────────────────────────────────────────────────────
@@ -440,6 +453,10 @@ export async function startBotService(): Promise<void> {
     // Fetch real LUX price from LuxEx smart contract (fallback: $0.0100)
     const luxStartPrice = await fetchLuxPriceFromChain();
     luxSim = new LuxPriceSimulator(luxStartPrice);
+
+    // Share LUX price with price-feed so derived pairs (POL/LUX, USDC/LUX) are correct
+    setLuxPrice(luxStartPrice);
+
     isRunning = true;
 
     // Run in background — don't await

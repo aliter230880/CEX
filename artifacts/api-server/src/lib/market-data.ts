@@ -3,14 +3,23 @@ import { eq, desc, and, gte } from "drizzle-orm";
 import { logger } from "./logger";
 import { getRealPrice, getRealStats } from "./price-feed";
 
-// Fallback prices (used only if Binance feed not yet loaded)
+// Fallback prices (used only if real-time feed not yet loaded)
 const FALLBACK_PRICES: Record<string, number> = {
-  "BTC/USDT": 67000,
-  "ETH/USDT": 3500,
-  "BNB/USDT": 600,
-  "POL/USDT": 0.90,
-  "SOL/USDT": 165,
-  "USDT/USD": 1.0,
+  // Main USDT pairs — from CoinGecko live feed
+  "BTC/USDT":  67000,
+  "ETH/USDT":  2363,
+  "BNB/USDT":  600,
+  "POL/USDT":  0.90,
+  "SOL/USDT":  86,
+  "UNI/USDT":  3.38,
+  // Stablecoins
+  "USDC/USDT": 1.0,
+  "USDT/USD":  1.0,
+  // Inverse pairs — derived: 1 / ETH price
+  "USDT/ETH":  1 / 2363,        // ~0.000423 ETH per USDT
+  // LUX cross-pairs — from LuxEx fixed rate (1 LUX = 0.11 POL = 0.01 USDC)
+  "POL/LUX":   1 / 0.11,        // ~9.09 LUX per POL
+  "USDC/LUX":  1 / 0.01,        // 100 LUX per USDC
 };
 
 export function getSeedPrice(pair: string): number {

@@ -16,7 +16,46 @@ const COINGECKO_IDS: Record<string, string> = {
   "BNB/USDT": "binancecoin",
   "POL/USDT": "matic-network",
   "SOL/USDT": "solana",
+  "UNI/USDT": "uniswap",
 };
+
+// LUX price tracked separately (from LuxEx oracle)
+let LUX_PRICE_USDT = 0.01;
+export function setLuxPrice(price: number) { LUX_PRICE_USDT = price; }
+export function getLuxPrice(): number { return LUX_PRICE_USDT; }
+
+// After CoinGecko update — compute derived pairs from real prices
+function updateDerivedPrices(): void {
+  const ethPrice  = PRICE_CACHE["ETH/USDT"]?.price  ?? 2363;
+  const polPrice  = PRICE_CACHE["POL/USDT"]?.price  ?? 0.90;
+
+  // USDC ≈ USDT (stablecoin)
+  PRICE_CACHE["USDC/USDT"] = {
+    price: 1.0, change24h: 0, changePercent24h: 0,
+    high24h: 1.002, low24h: 0.998, volume24h: 0,
+  };
+
+  // USDT/ETH — inverse of ETH/USDT
+  const usdt2eth = 1 / ethPrice;
+  PRICE_CACHE["USDT/ETH"] = {
+    price: usdt2eth, change24h: 0, changePercent24h: 0,
+    high24h: usdt2eth * 1.02, low24h: usdt2eth * 0.98, volume24h: 0,
+  };
+
+  // POL/LUX — how many LUX for 1 POL
+  const pol2lux = polPrice / LUX_PRICE_USDT;
+  PRICE_CACHE["POL/LUX"] = {
+    price: pol2lux, change24h: 0, changePercent24h: 0,
+    high24h: pol2lux * 1.02, low24h: pol2lux * 0.98, volume24h: 0,
+  };
+
+  // USDC/LUX — how many LUX for 1 USDC
+  const usdc2lux = 1.0 / LUX_PRICE_USDT;
+  PRICE_CACHE["USDC/LUX"] = {
+    price: usdc2lux, change24h: 0, changePercent24h: 0,
+    high24h: usdc2lux * 1.02, low24h: usdc2lux * 0.98, volume24h: 0,
+  };
+}
 
 // In-memory cache of real prices and 24h stats
 interface PriceStats {
@@ -79,6 +118,9 @@ async function fetchCoinGeckoMarkets(): Promise<void> {
   }
 
   logger.debug({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "Price cache updated from CoinGecko");
+
+  // Update derived prices (stablecoins, inverse pairs, LUX cross-pairs)
+  updateDerivedPrices();
 }
 
 async function fetchCoinGeckoOhlc(coinId: string, days: number): Promise<Array<{
