@@ -15,9 +15,53 @@
 import { db, usersTable, balancesTable, ordersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import bcrypt from "bcryptjs";
+import { ethers } from "ethers";
 import { matchOrders } from "./matching-engine";
 import { logger } from "./logger";
 import { getSeedPrice } from "./market-data";
+
+// ─── LuxEx on-chain price oracle ─────────────────────────────────────────────
+
+const LUXEX_CONTRACT = "0xe5646EBf223499E0d15Af09F8e42cC6586B0512b";
+const POLYGON_USDT   = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"; // 6 dec
+
+const LUXEX_ABI = [
+  {
+    inputs: [{ name: "token", type: "address" }],
+    name: "getPrice",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+const POLYGON_RPCS = [
+  "https://1rpc.io/matic",
+  "https://rpc-mainnet.maticvigil.com",
+  "https://polygon-bor-rpc.publicnode.com",
+];
+
+async function fetchLuxPriceFromChain(): Promise<number> {
+  for (const rpc of POLYGON_RPCS) {
+    try {
+      const provider = new ethers.JsonRpcProvider(rpc, 137, { batchMaxCount: 1 });
+      const contract = new ethers.Contract(LUXEX_CONTRACT, LUXEX_ABI, provider);
+      const priceWei: bigint = await Promise.race([
+        contract.getPrice(POLYGON_USDT) as Promise<bigint>,
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000)),
+      ]);
+      const price = Number(priceWei) / 1e6; // USDT has 6 decimals
+      if (price > 0) {
+        logger.info({ rpc, priceUSDT: price }, "LUX price fetched from LuxEx chain");
+        return price;
+      }
+    } catch (err) {
+      logger.warn({ rpc, err }, "LuxEx RPC failed, trying next");
+    }
+  }
+  logger.warn("All Polygon RPCs failed — using default LUX price $0.0100");
+  return 0.0100;
+}
 
 // ─── Bot accounts ────────────────────────────────────────────────────────────
 
@@ -392,7 +436,10 @@ export async function startBotService(): Promise<void> {
     }
 
     botUserIds = ids;
-    luxSim = new LuxPriceSimulator(0.0100); // LUX starts at $0.01
+
+    // Fetch real LUX price from LuxEx smart contract (fallback: $0.0100)
+    const luxStartPrice = await fetchLuxPriceFromChain();
+    luxSim = new LuxPriceSimulator(luxStartPrice);
     isRunning = true;
 
     // Run in background — don't await
