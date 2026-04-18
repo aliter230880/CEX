@@ -86778,8 +86778,52 @@ var COINGECKO_IDS = {
   "ETH/USDT": "ethereum",
   "BNB/USDT": "binancecoin",
   "POL/USDT": "matic-network",
-  "SOL/USDT": "solana"
+  "SOL/USDT": "solana",
+  "UNI/USDT": "uniswap"
 };
+var LUX_PRICE_USDT = 0.01;
+function setLuxPrice(price) {
+  LUX_PRICE_USDT = price;
+}
+function updateDerivedPrices() {
+  const ethPrice = PRICE_CACHE["ETH/USDT"]?.price ?? 2363;
+  const polPrice = PRICE_CACHE["POL/USDT"]?.price ?? 0.9;
+  PRICE_CACHE["USDC/USDT"] = {
+    price: 1,
+    change24h: 0,
+    changePercent24h: 0,
+    high24h: 1.002,
+    low24h: 0.998,
+    volume24h: 0
+  };
+  const usdt2eth = 1 / ethPrice;
+  PRICE_CACHE["USDT/ETH"] = {
+    price: usdt2eth,
+    change24h: 0,
+    changePercent24h: 0,
+    high24h: usdt2eth * 1.02,
+    low24h: usdt2eth * 0.98,
+    volume24h: 0
+  };
+  const pol2lux = polPrice / LUX_PRICE_USDT;
+  PRICE_CACHE["POL/LUX"] = {
+    price: pol2lux,
+    change24h: 0,
+    changePercent24h: 0,
+    high24h: pol2lux * 1.02,
+    low24h: pol2lux * 0.98,
+    volume24h: 0
+  };
+  const usdc2lux = 1 / LUX_PRICE_USDT;
+  PRICE_CACHE["USDC/LUX"] = {
+    price: usdc2lux,
+    change24h: 0,
+    changePercent24h: 0,
+    high24h: usdc2lux * 1.02,
+    low24h: usdc2lux * 0.98,
+    volume24h: 0
+  };
+}
 var PRICE_CACHE = {};
 function getRealPrice(pair) {
   return PRICE_CACHE[pair]?.price ?? null;
@@ -86813,6 +86857,7 @@ async function fetchCoinGeckoMarkets() {
     };
   }
   logger.debug({ prices: Object.fromEntries(Object.entries(PRICE_CACHE).map(([k, v]) => [k, v.price])) }, "Price cache updated from CoinGecko");
+  updateDerivedPrices();
 }
 async function fetchCoinGeckoOhlc(coinId, days) {
   const url2 = `https://api.coingecko.com/api/v3/coins/${coinId}/ohlc?vs_currency=usd&days=${days}`;
@@ -87020,12 +87065,24 @@ async function startPriceFeed() {
 
 // src/lib/market-data.ts
 var FALLBACK_PRICES = {
+  // Main USDT pairs — from CoinGecko live feed
   "BTC/USDT": 67e3,
-  "ETH/USDT": 3500,
+  "ETH/USDT": 2363,
   "BNB/USDT": 600,
   "POL/USDT": 0.9,
-  "SOL/USDT": 165,
-  "USDT/USD": 1
+  "SOL/USDT": 86,
+  "UNI/USDT": 3.38,
+  // Stablecoins
+  "USDC/USDT": 1,
+  "USDT/USD": 1,
+  // Inverse pairs — derived: 1 / ETH price
+  "USDT/ETH": 1 / 2363,
+  // ~0.000423 ETH per USDT
+  // LUX cross-pairs — from LuxEx fixed rate (1 LUX = 0.11 POL = 0.01 USDC)
+  "POL/LUX": 1 / 0.11,
+  // ~9.09 LUX per POL
+  "USDC/LUX": 1 / 0.01
+  // 100 LUX per USDC
 };
 function getSeedPrice(pair) {
   return getRealPrice(pair) ?? FALLBACK_PRICES[pair] ?? 1;
@@ -88892,11 +88949,13 @@ var BOT_USERS = [
 ];
 var BOT_STARTING_BALANCES = {
   USDT: 1e7,
+  USDC: 5e6,
   BTC: 200,
   ETH: 4e3,
   BNB: 2e4,
   POL: 2e6,
   SOL: 4e4,
+  UNI: 5e5,
   LUX: 5e8
 };
 var REFILL_THRESHOLD_RATIO = 0.1;
@@ -88906,7 +88965,12 @@ var PAIRS2 = [
   "BNB/USDT",
   "POL/USDT",
   "SOL/USDT",
-  "LUX/USDT"
+  "LUX/USDT",
+  "UNI/USDT",
+  "USDC/USDT",
+  "USDT/ETH",
+  "POL/LUX",
+  "USDC/LUX"
 ];
 var PAIR_VOLUME = {
   "BTC/USDT": { min: 5e-4, max: 0.05 },
@@ -88914,7 +88978,12 @@ var PAIR_VOLUME = {
   "BNB/USDT": { min: 0.05, max: 5 },
   "POL/USDT": { min: 20, max: 1e3 },
   "SOL/USDT": { min: 0.1, max: 15 },
-  "LUX/USDT": { min: 5e3, max: 2e5 }
+  "LUX/USDT": { min: 5e3, max: 2e5 },
+  "UNI/USDT": { min: 5, max: 500 },
+  "USDC/USDT": { min: 100, max: 1e4 },
+  "USDT/ETH": { min: 100, max: 5e3 },
+  "POL/LUX": { min: 50, max: 2e3 },
+  "USDC/LUX": { min: 10, max: 500 }
 };
 var LuxPriceSimulator = class {
   price;
@@ -89111,6 +89180,7 @@ async function startBotService() {
     botUserIds = ids;
     const luxStartPrice = await fetchLuxPriceFromChain();
     luxSim = new LuxPriceSimulator(luxStartPrice);
+    setLuxPrice(luxStartPrice);
     isRunning = true;
     runLoop().catch((err) => {
       logger.error({ err }, "Bot loop crashed unexpectedly");
