@@ -24,7 +24,8 @@ import { setLuxPrice } from "./price-feed";
 // ─── LuxEx on-chain price oracle ─────────────────────────────────────────────
 
 const LUXEX_CONTRACT = "0xe5646EBf223499E0d15Af09F8e42cC6586B0512b";
-const POLYGON_USDT   = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"; // 6 dec
+const POLYGON_USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"; // 6 decimals
+const POLYGON_POL  = "0x0000000000000000000000000000000000001010"; // 18 decimals (native)
 
 const LUXEX_ABI = [
   {
@@ -42,26 +43,35 @@ const POLYGON_RPCS = [
   "https://polygon-bor-rpc.publicnode.com",
 ];
 
-async function fetchLuxPriceFromChain(): Promise<number> {
+interface LuxRates { usdt: number; pol: number }
+
+async function fetchLuxPriceFromChain(): Promise<LuxRates> {
   for (const rpc of POLYGON_RPCS) {
     try {
       const provider = new ethers.JsonRpcProvider(rpc, 137, { batchMaxCount: 1 });
       const contract = new ethers.Contract(LUXEX_CONTRACT, LUXEX_ABI, provider);
-      const priceWei: bigint = await Promise.race([
-        contract.getPrice(POLYGON_USDT) as Promise<bigint>,
-        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000)),
+
+      const timeout = <T>(p: Promise<T>) =>
+        Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timeout")), 8000))]);
+
+      const [usdtWei, polWei] = await Promise.all([
+        timeout(contract.getPrice(POLYGON_USDT) as Promise<bigint>),
+        timeout(contract.getPrice(POLYGON_POL)  as Promise<bigint>),
       ]);
-      const price = Number(priceWei) / 1e6; // USDT has 6 decimals
-      if (price > 0) {
-        logger.info({ rpc, priceUSDT: price }, "LUX price fetched from LuxEx chain");
-        return price;
+
+      const usdt = Number(usdtWei) / 1e6;  // USDT: 6 decimals
+      const pol  = Number(polWei)  / 1e18; // POL:  18 decimals
+
+      if (usdt > 0 && pol > 0) {
+        logger.info({ rpc, priceUSDT: usdt, pricePOL: pol }, "LUX rates fetched from LuxEx chain");
+        return { usdt, pol };
       }
     } catch (err) {
       logger.warn({ rpc, err }, "LuxEx RPC failed, trying next");
     }
   }
-  logger.warn("All Polygon RPCs failed — using default LUX price $0.0100");
-  return 0.0100;
+  logger.warn("All Polygon RPCs failed — using default LUX rates");
+  return { usdt: 0.0100, pol: 0.11 };
 }
 
 // ─── Bot accounts ────────────────────────────────────────────────────────────
@@ -450,12 +460,12 @@ export async function startBotService(): Promise<void> {
 
     botUserIds = ids;
 
-    // Fetch real LUX price from LuxEx smart contract (fallback: $0.0100)
-    const luxStartPrice = await fetchLuxPriceFromChain();
-    luxSim = new LuxPriceSimulator(luxStartPrice);
+    // Fetch real LUX rates from LuxEx smart contract (fallback: $0.0100, 0.11 POL)
+    const luxRates = await fetchLuxPriceFromChain();
+    luxSim = new LuxPriceSimulator(luxRates.usdt);
 
-    // Share LUX price with price-feed so derived pairs (POL/LUX, USDC/LUX) are correct
-    setLuxPrice(luxStartPrice);
+    // Share LUX rates with price-feed so POL/LUX, USDC/LUX use correct LuxEx rates
+    setLuxPrice(luxRates.usdt, luxRates.pol);
 
     isRunning = true;
 

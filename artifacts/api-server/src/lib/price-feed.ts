@@ -19,37 +19,42 @@ const COINGECKO_IDS: Record<string, string> = {
   "UNI/USDT": "uniswap",
 };
 
-// LUX price tracked separately (from LuxEx oracle)
-let LUX_PRICE_USDT = 0.01;
-export function setLuxPrice(price: number) { LUX_PRICE_USDT = price; }
+// LUX prices from LuxEx oracle (per-token fixed rates)
+let LUX_PRICE_USDT = 0.01;   // 1 LUX = $0.01 USDT
+let LUX_PRICE_POL  = 0.11;   // 1 LUX = 0.11 POL (from LuxEx getPrice(POL))
+
+export function setLuxPrice(usdt: number, pol?: number) {
+  LUX_PRICE_USDT = usdt;
+  if (pol) LUX_PRICE_POL = pol;
+  updateDerivedPrices(); // update immediately on set
+}
 export function getLuxPrice(): number { return LUX_PRICE_USDT; }
 
-// After CoinGecko update — compute derived pairs from real prices
+// Compute derived pairs — called at startup and after every CoinGecko/LUX update
 function updateDerivedPrices(): void {
-  const ethPrice  = PRICE_CACHE["ETH/USDT"]?.price  ?? 2363;
-  const polPrice  = PRICE_CACHE["POL/USDT"]?.price  ?? 0.90;
+  const ethPrice = PRICE_CACHE["ETH/USDT"]?.price ?? 2363;
 
-  // USDC ≈ USDT (stablecoin)
+  // USDC ≈ USDT (stablecoin always 1:1)
   PRICE_CACHE["USDC/USDT"] = {
     price: 1.0, change24h: 0, changePercent24h: 0,
     high24h: 1.002, low24h: 0.998, volume24h: 0,
   };
 
-  // USDT/ETH — inverse of ETH/USDT
+  // USDT/ETH — inverse of ETH/USDT (how much ETH per 1 USDT)
   const usdt2eth = 1 / ethPrice;
   PRICE_CACHE["USDT/ETH"] = {
     price: usdt2eth, change24h: 0, changePercent24h: 0,
     high24h: usdt2eth * 1.02, low24h: usdt2eth * 0.98, volume24h: 0,
   };
 
-  // POL/LUX — how many LUX for 1 POL
-  const pol2lux = polPrice / LUX_PRICE_USDT;
+  // POL/LUX — using LuxEx fixed rate: 1 LUX = 0.11 POL → 1 POL = 9.09 LUX
+  const pol2lux = 1 / LUX_PRICE_POL;
   PRICE_CACHE["POL/LUX"] = {
     price: pol2lux, change24h: 0, changePercent24h: 0,
     high24h: pol2lux * 1.02, low24h: pol2lux * 0.98, volume24h: 0,
   };
 
-  // USDC/LUX — how many LUX for 1 USDC
+  // USDC/LUX — using LuxEx fixed rate: 1 LUX = $0.01 → 1 USDC = 100 LUX
   const usdc2lux = 1.0 / LUX_PRICE_USDT;
   PRICE_CACHE["USDC/LUX"] = {
     price: usdc2lux, change24h: 0, changePercent24h: 0,
@@ -68,6 +73,9 @@ interface PriceStats {
 }
 
 const PRICE_CACHE: Record<string, PriceStats> = {};
+
+// Initialize derived prices immediately with fallback values (before CoinGecko loads)
+updateDerivedPrices();
 
 export function getRealPrice(pair: string): number | null {
   return PRICE_CACHE[pair]?.price ?? null;
