@@ -291,3 +291,29 @@ const network = ethers.Network.from(chainId); // явная инициализа
 - **GitHub Actions:** https://github.com/aliter230880/CEX/actions
 - **VPS IP:** 89.111.152.187
 - **PM2:** `nexex` (биржа ID=1), `aliterra` (доп. сервис ID=0)
+
+---
+
+## 9. Запланированные шаги (ждут выполнения)
+
+### 🔜 GeckoTerminal листинг LUX — ждёт $40 в крипте
+
+**Цель:** сделать LUX видимым на geckoterminal.com → автоматически попасть в базу CoinGecko
+
+**Что нужно:**
+- ~2,000 LUX из контракта `0x7324c346b47250A3e147a3c43B7A1545D0dC0796` (Polygon)
+- ~$20 USDC на Polygon
+- ~1-2 MATIC для газа (~$0.20)
+- Итого: **~$40**
+
+**Платформа:** QuickSwap v2 на Polygon (самый дешёвый вариант)
+
+**Шаги:**
+1. Зайти на quickswap.exchange → Pool → New Position
+2. Создать пару LUX/USDC, адрес LUX: `0x7324c346b47250A3e147a3c43B7A1545D0dC0796`
+3. Внести 2,000 LUX + $20 USDC (цена = $0.01/LUX как на LuxEx)
+4. Подтвердить в MetaMask
+5. Ждать 2-24 часа → GeckoTerminal подхватывает автоматически
+6. Через несколько дней → страница LUX появляется на CoinGecko
+
+**Статус:** ⏳ Ждём пополнения бюджета
