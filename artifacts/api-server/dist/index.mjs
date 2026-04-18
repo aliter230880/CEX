@@ -88841,6 +88841,43 @@ async function seedData() {
 }
 
 // src/lib/bot-service.ts
+var LUXEX_CONTRACT = "0xe5646EBf223499E0d15Af09F8e42cC6586B0512b";
+var POLYGON_USDT = "0xc2132D05D31c914a87C6611C10748AEb04B58e8F";
+var LUXEX_ABI2 = [
+  {
+    inputs: [{ name: "token", type: "address" }],
+    name: "getPrice",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+var POLYGON_RPCS = [
+  "https://1rpc.io/matic",
+  "https://rpc-mainnet.maticvigil.com",
+  "https://polygon-bor-rpc.publicnode.com"
+];
+async function fetchLuxPriceFromChain() {
+  for (const rpc of POLYGON_RPCS) {
+    try {
+      const provider = new ethers_exports.JsonRpcProvider(rpc, 137, { batchMaxCount: 1 });
+      const contract = new ethers_exports.Contract(LUXEX_CONTRACT, LUXEX_ABI2, provider);
+      const priceWei = await Promise.race([
+        contract.getPrice(POLYGON_USDT),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 8e3))
+      ]);
+      const price = Number(priceWei) / 1e6;
+      if (price > 0) {
+        logger.info({ rpc, priceUSDT: price }, "LUX price fetched from LuxEx chain");
+        return price;
+      }
+    } catch (err) {
+      logger.warn({ rpc, err }, "LuxEx RPC failed, trying next");
+    }
+  }
+  logger.warn("All Polygon RPCs failed \u2014 using default LUX price $0.0100");
+  return 0.01;
+}
 var BOT_USERS = [
   {
     email: "bot1@atex.internal",
@@ -89072,7 +89109,8 @@ async function startBotService() {
       return;
     }
     botUserIds = ids;
-    luxSim = new LuxPriceSimulator(0.01);
+    const luxStartPrice = await fetchLuxPriceFromChain();
+    luxSim = new LuxPriceSimulator(luxStartPrice);
     isRunning = true;
     runLoop().catch((err) => {
       logger.error({ err }, "Bot loop crashed unexpectedly");
