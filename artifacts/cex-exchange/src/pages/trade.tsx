@@ -288,10 +288,20 @@ export default function Trade() {
                     render={({ field }) => (
                       <FormItem>
                         <FormControl>
-                          <div className="relative">
-                            <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">Price</span>
-                            <Input className="pl-12 text-right font-mono" placeholder="0.00" {...field} />
-                            <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">{quoteAsset}</span>
+                          <div className="flex h-10 rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring overflow-hidden">
+                            <span className="flex items-center px-3 border-r border-input bg-muted/50 text-xs font-semibold text-foreground shrink-0 min-w-[52px] justify-center select-none">
+                              {quoteAsset}
+                            </span>
+                            <div className="flex-1 flex items-center px-3 gap-2">
+                              <span className="text-xs text-muted-foreground shrink-0 select-none">Price</span>
+                              <input
+                                className="flex-1 bg-transparent text-right font-mono text-sm outline-none placeholder:text-muted-foreground/50 min-w-0"
+                                placeholder="0.00"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                {...field}
+                              />
+                            </div>
                           </div>
                         </FormControl>
                         <FormMessage className="text-xs" />
@@ -310,10 +320,20 @@ export default function Trade() {
                   render={({ field }) => (
                     <FormItem>
                       <FormControl>
-                        <div className="relative">
-                          <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">Amount</span>
-                          <Input className="pl-16 text-right font-mono" placeholder="0.00" {...field} />
-                          <span className="absolute right-3 top-2.5 text-xs text-muted-foreground">{baseAsset}</span>
+                        <div className="flex h-10 rounded-md border border-input bg-background focus-within:ring-1 focus-within:ring-ring overflow-hidden">
+                          <span className="flex items-center px-3 border-r border-input bg-muted/50 text-xs font-semibold text-foreground shrink-0 min-w-[52px] justify-center select-none">
+                            {baseAsset}
+                          </span>
+                          <div className="flex-1 flex items-center px-3 gap-2">
+                            <span className="text-xs text-muted-foreground shrink-0 select-none">Amount</span>
+                            <input
+                              className="flex-1 bg-transparent text-right font-mono text-sm outline-none placeholder:text-muted-foreground/50 min-w-0"
+                              placeholder="0.00"
+                              inputMode="decimal"
+                              autoComplete="off"
+                              {...field}
+                            />
+                          </div>
                         </div>
                       </FormControl>
                       <FormMessage className="text-xs" />
