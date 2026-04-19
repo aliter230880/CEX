@@ -88,9 +88,14 @@ jobs:
           if git diff --staged --quiet; then
             echo "Артефакты не изменились, коммит не нужен"
           else
-            git commit -m "ci: pre-built frontend + api dist [skip ci]"
-            # Подтягиваем возможные новые коммиты перед пушем (rebase сохраняет наш коммит сверху)
-            git pull --rebase origin main
+            # Подтягиваем свежие коммиты с origin перед коммитом
+            git fetch origin main
+            # Soft-reset на актуальный origin/main, сохраняя наши staged changes
+            git reset --soft origin/main
+            # Снова форс-добавляем dist (reset мог их убрать из staged)
+            git add -f artifacts/cex-exchange/dist/
+            git add -f artifacts/api-server/dist/
+            git commit -m "ci: pre-built frontend + api dist [skip ci]" || echo "Нечего коммитить"
             git push origin main
           fi
 
