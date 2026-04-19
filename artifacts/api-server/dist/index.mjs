@@ -89303,6 +89303,67 @@ async function simulatePairTrade(pair) {
     "Bot trade executed"
   );
 }
+var makerOrderIds = /* @__PURE__ */ new Map();
+async function seedOrderBook(pair) {
+  if (!botUserIds) return;
+  const [botAId, botBId] = botUserIds;
+  let midPrice;
+  if (pair === "LUX/USDT" && luxSim) {
+    midPrice = luxSim.current();
+  } else {
+    midPrice = getSeedPrice(pair);
+  }
+  if (!midPrice || midPrice <= 0) return;
+  const old = makerOrderIds.get(pair) ?? [];
+  if (old.length > 0) {
+    const oldOrders = await db.select().from(ordersTable).where(inArray(ordersTable.id, old));
+    for (const o of oldOrders) {
+      if (o.status !== "open") continue;
+      const [baseAsset, quoteAsset] = pair.split("/");
+      const unlockAsset = o.side === "buy" ? quoteAsset : baseAsset;
+      const unlockAmt = o.side === "buy" ? parseFloat(o.quantity) * parseFloat(o.price ?? "0") : parseFloat(o.quantity);
+      const [bal] = await db.select().from(balancesTable).where(and(eq(balancesTable.userId, o.userId), eq(balancesTable.asset, unlockAsset)));
+      if (bal) {
+        await db.update(balancesTable).set({
+          available: (parseFloat(bal.available) + unlockAmt).toFixed(8),
+          locked: Math.max(0, parseFloat(bal.locked) - unlockAmt).toFixed(8)
+        }).where(eq(balancesTable.id, bal.id));
+      }
+      await db.update(ordersTable).set({ status: "cancelled", updatedAt: /* @__PURE__ */ new Date() }).where(eq(ordersTable.id, o.id));
+    }
+    makerOrderIds.set(pair, []);
+  }
+  const newIds = [];
+  const LEVELS = 10;
+  const volRange = PAIR_VOLUME[pair] ?? { min: 1, max: 10 };
+  await ensureBalance(botAId, pair.split("/")[0], BOT_STARTING_BALANCES[pair.split("/")[0]] ?? 1e4);
+  await ensureBalance(botAId, pair.split("/")[1], BOT_STARTING_BALANCES[pair.split("/")[1]] ?? 1e6);
+  await ensureBalance(botBId, pair.split("/")[0], BOT_STARTING_BALANCES[pair.split("/")[0]] ?? 1e4);
+  await ensureBalance(botBId, pair.split("/")[1], BOT_STARTING_BALANCES[pair.split("/")[1]] ?? 1e6);
+  for (let i = 1; i <= LEVELS; i++) {
+    const offset = i * 5e-3;
+    const bidPrice = midPrice * (1 - offset);
+    const askPrice = midPrice * (1 + offset);
+    const qty = rand(volRange.min, volRange.max);
+    const bidId = await placeOrder(botAId, pair, "buy", bidPrice, qty);
+    if (bidId) newIds.push(bidId);
+    const askId = await placeOrder(botBId, pair, "sell", askPrice, qty);
+    if (askId) newIds.push(askId);
+    await sleep(50);
+  }
+  makerOrderIds.set(pair, newIds);
+  logger.info({ pair, levels: LEVELS, midPrice: midPrice.toFixed(6), orders: newIds.length }, "Order book seeded");
+}
+async function seedAllPairs() {
+  for (const pair of PAIRS2) {
+    try {
+      await seedOrderBook(pair);
+    } catch (err) {
+      logger.warn({ err, pair }, "Failed to seed order book for pair");
+    }
+    await sleep(200);
+  }
+}
 async function runLoop() {
   await sleep(rand(5e3, 15e3));
   while (isRunning) {
@@ -89353,6 +89414,14 @@ async function startBotService() {
     luxSim = new LuxPriceSimulator(luxRates.usdt);
     setLuxPrice(luxRates.usdt, luxRates.pol);
     isRunning = true;
+    seedAllPairs().catch((err) => logger.warn({ err }, "Initial order book seeding failed"));
+    const seedInterval = setInterval(() => {
+      if (!isRunning) {
+        clearInterval(seedInterval);
+        return;
+      }
+      seedAllPairs().catch((err) => logger.warn({ err }, "Order book re-seed failed"));
+    }, 5 * 60 * 1e3);
     runLoop().catch((err) => {
       logger.error({ err }, "Bot loop crashed unexpectedly");
       isRunning = false;
