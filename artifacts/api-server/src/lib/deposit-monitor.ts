@@ -99,10 +99,12 @@ async function scanNetwork(network: string) {
   }
 
   // Also scan custom tokens on this network
-  const networkMap: Record<string, string> = { ETH: "eth", BSC: "bsc", POLYGON: "polygon" };
-  const networkKey = networkMap[network];
-  if (networkKey) {
-    const customTokens = await db.select().from(customTokensTable).where(eq(customTokensTable.network, networkKey));
+  // custom_tokens.network is stored uppercase (POLYGON/ETH/BSC) — match directly
+  const customTokenNetwork = network; // "POLYGON", "ETH", "BSC"
+  {
+    const customTokens = await db.select().from(customTokensTable).where(
+      eq(customTokensTable.network, customTokenNetwork),
+    );
     for (const token of customTokens) {
       if (!token.contractAddress) continue;
       try {
