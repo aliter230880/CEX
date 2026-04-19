@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, numeric, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { usersTable } from "./users";
 
 export const cryptoTransactionsTable = pgTable("crypto_transactions", {
@@ -15,6 +16,10 @@ export const cryptoTransactionsTable = pgTable("crypto_transactions", {
   confirmations: integer("confirmations").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => [
+  uniqueIndex("crypto_transactions_tx_hash_unique")
+    .on(table.txHash)
+    .where(sql`${table.txHash} IS NOT NULL`),
+]);
 
 export type CryptoTransaction = typeof cryptoTransactionsTable.$inferSelect;

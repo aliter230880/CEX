@@ -332,26 +332,26 @@ async function processTx(
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return;
 
-  // Already recorded?
-  const existing = await db
-    .select({ id: cryptoTransactionsTable.id, status: cryptoTransactionsTable.status })
-    .from(cryptoTransactionsTable)
-    .where(eq(cryptoTransactionsTable.txHash, txHash));
+  // Atomically upgrade pending → confirmed (only if currently pending).
+  // RETURNING ensures we credit only when this process wins the race.
+  const upgraded = await db.update(cryptoTransactionsTable)
+    .set({ status: "confirmed", confirmations })
+    .where(and(
+      eq(cryptoTransactionsTable.txHash, txHash),
+      eq(cryptoTransactionsTable.status, "pending"),
+    ))
+    .returning({ id: cryptoTransactionsTable.id });
 
-  if (existing.length > 0) {
-    // If still pending but now confirmed, upgrade it
-    if (existing[0].status === "pending") {
-      await db.update(cryptoTransactionsTable)
-        .set({ status: "confirmed", confirmations })
-        .where(eq(cryptoTransactionsTable.id, existing[0].id));
-      await creditBalance(userId, asset, network, amount);
-      logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
-    }
+  if (upgraded.length > 0) {
+    await creditBalance(userId, asset, network, amount);
+    logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
     return;
   }
 
-  // Insert new confirmed deposit record
-  await db.insert(cryptoTransactionsTable).values({
+  // Atomically insert a new confirmed deposit.
+  // ON CONFLICT DO NOTHING + RETURNING guarantees creditBalance runs exactly once
+  // even when multiple concurrent force-rescans process the same txHash.
+  const inserted = await db.insert(cryptoTransactionsTable).values({
     userId,
     type:        "deposit",
     asset,
@@ -362,10 +362,14 @@ async function processTx(
     fromAddress,
     toAddress,
     confirmations,
-  }).onConflictDoNothing();
+  }).onConflictDoNothing().returning({ id: cryptoTransactionsTable.id });
 
-  await creditBalance(userId, asset, network, amount);
-  logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+  if (inserted.length > 0) {
+    await creditBalance(userId, asset, network, amount);
+    logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+  } else {
+    logger.debug({ txHash, asset, network }, "Deposit already recorded — skipping credit (concurrent rescan)");
+  }
 }
 
 async function creditBalance(userId: number, asset: string, network: string, amount: string) {

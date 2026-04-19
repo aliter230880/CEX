@@ -808,9 +808,24 @@ router.get("/admin/transactions", adminGuard, async (req: Request, res: Response
   });
 });
 
+// Cooldown tracking for force-rescan — prevents double-crediting from rapid clicks
+let lastRescanAt = 0;
+const RESCAN_COOLDOWN_MS = 30_000;
+
 // POST /api/admin/force-rescan
 // Reset deposit scanner to N blocks in the past so it re-processes historical deposits
 router.post("/admin/force-rescan", adminGuard, async (req: Request, res: Response): Promise<void> => {
+  const now = Date.now();
+  if (now - lastRescanAt < RESCAN_COOLDOWN_MS) {
+    const remaining = Math.ceil((RESCAN_COOLDOWN_MS - (now - lastRescanAt)) / 1000);
+    res.status(429).json({
+      error: "rescan_cooldown",
+      message: `Force-rescan is on cooldown. Wait ${remaining}s to avoid double-crediting deposits.`,
+    });
+    return;
+  }
+  lastRescanAt = now;
+
   const { network, lookbackBlocks } = req.body as { network?: string; lookbackBlocks?: number };
   const networks = network ? [network.toUpperCase()] : ["ETH", "BSC", "POLYGON"];
   const validNetworks = ["ETH", "BSC", "POLYGON"];
