@@ -87266,17 +87266,38 @@ async function getTickerData(pair) {
   };
 }
 async function getOrderBookData(pair, depth = 20) {
-  const price = getSeedPrice(pair);
-  const bids = [];
-  const asks = [];
-  for (let i = 1; i <= depth; i++) {
-    const bidPrice = (price * (1 - i * 5e-4)).toFixed(2);
-    const askPrice = (price * (1 + i * 5e-4)).toFixed(2);
-    const bidQty = (Math.random() * 5 + 0.01).toFixed(4);
-    const askQty = (Math.random() * 5 + 0.01).toFixed(4);
-    bids.push([bidPrice, bidQty, (parseFloat(bidPrice) * parseFloat(bidQty)).toFixed(2)]);
-    asks.push([askPrice, askQty, (parseFloat(askPrice) * parseFloat(askQty)).toFixed(2)]);
+  const openOrders = await db.select({
+    side: ordersTable.side,
+    price: ordersTable.price,
+    quantity: ordersTable.quantity,
+    filled: ordersTable.filled
+  }).from(ordersTable).where(and(
+    eq(ordersTable.pair, pair),
+    eq(ordersTable.status, "open"),
+    eq(ordersTable.type, "limit"),
+    sql`${ordersTable.price} IS NOT NULL`
+  ));
+  const bidMap = /* @__PURE__ */ new Map();
+  const askMap = /* @__PURE__ */ new Map();
+  for (const o of openOrders) {
+    if (o.price === null) continue;
+    const remaining = parseFloat(o.quantity) - parseFloat(o.filled);
+    if (remaining <= 0) continue;
+    const priceStr = parseFloat(o.price).toFixed(8).replace(/\.?0+$/, "");
+    if (o.side === "buy") {
+      bidMap.set(priceStr, (bidMap.get(priceStr) ?? 0) + remaining);
+    } else {
+      askMap.set(priceStr, (askMap.get(priceStr) ?? 0) + remaining);
+    }
   }
+  const bids = [...bidMap.entries()].sort((a, b2) => parseFloat(b2[0]) - parseFloat(a[0])).slice(0, depth).map(([p, q]) => {
+    const qty = q.toFixed(4);
+    return [p, qty, (parseFloat(p) * parseFloat(qty)).toFixed(2)];
+  });
+  const asks = [...askMap.entries()].sort((a, b2) => parseFloat(a[0]) - parseFloat(b2[0])).slice(0, depth).map(([p, q]) => {
+    const qty = q.toFixed(4);
+    return [p, qty, (parseFloat(p) * parseFloat(qty)).toFixed(2)];
+  });
   return {
     pair,
     bids,
