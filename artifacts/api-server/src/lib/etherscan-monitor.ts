@@ -18,7 +18,7 @@ import { ethers } from "ethers";
 import { eq, and } from "drizzle-orm";
 import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, customTokensTable } from "@workspace/db";
 import { logger } from "./logger";
-import { getRequiredConfirmations } from "./blockchain";
+import { getRequiredConfirmations, getProvider } from "./blockchain";
 
 const ETHERSCAN_BASE = "https://api.etherscan.io/v2/api";
 
@@ -396,6 +396,61 @@ async function creditBalance(userId: number, asset: string, network: string, amo
 }
 
 /**
+ * Check pending withdrawal transactions and update their status.
+ * Polls the RPC for transaction receipts and confirms/fails withdrawals.
+ */
+async function confirmPendingWithdrawals() {
+  const NETWORK_RPC: Record<string, string> = { ETH: "ETH", POLYGON: "POLYGON", BSC: "BSC" };
+
+  const pendingWithdrawals = await db
+    .select()
+    .from(cryptoTransactionsTable)
+    .where(and(
+      eq(cryptoTransactionsTable.type, "withdrawal"),
+      eq(cryptoTransactionsTable.status, "pending"),
+    ));
+
+  for (const tx of pendingWithdrawals) {
+    if (!tx.txHash) continue;
+
+    const rpcNetwork = NETWORK_RPC[tx.network];
+    if (!rpcNetwork) continue;
+
+    try {
+      const provider = getProvider(rpcNetwork);
+      const receipt = await Promise.race([
+        provider.getTransactionReceipt(tx.txHash),
+        new Promise<null>((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+      ]);
+
+      if (!receipt) continue; // not mined yet
+
+      if (receipt.status === 1) {
+        await db.update(cryptoTransactionsTable)
+          .set({ status: "confirmed", confirmations: getRequiredConfirmations(rpcNetwork) })
+          .where(eq(cryptoTransactionsTable.id, tx.id));
+        logger.info({ txHash: tx.txHash, userId: tx.userId, asset: tx.asset, amount: tx.amount }, "Withdrawal confirmed on-chain");
+      } else if (receipt.status === 0) {
+        // Transaction failed on-chain — refund balance
+        await db.update(cryptoTransactionsTable)
+          .set({ status: "failed" })
+          .where(eq(cryptoTransactionsTable.id, tx.id));
+
+        const [bal] = await db.select().from(balancesTable)
+          .where(and(eq(balancesTable.userId, tx.userId), eq(balancesTable.asset, tx.asset)));
+        if (bal) {
+          const refunded = (parseFloat(bal.available) + parseFloat(tx.amount)).toFixed(8);
+          await db.update(balancesTable).set({ available: refunded }).where(eq(balancesTable.id, bal.id));
+        }
+        logger.warn({ txHash: tx.txHash, userId: tx.userId, asset: tx.asset }, "Withdrawal failed on-chain — balance refunded");
+      }
+    } catch (err) {
+      logger.debug({ err, txHash: tx.txHash }, "Could not check withdrawal receipt (will retry)");
+    }
+  }
+}
+
+/**
  * Run one scan cycle for all explorer-supported networks.
  * ETH + POLYGON via Etherscan V2 API (ETHERSCAN_API_KEY).
  * BSC via BscScan API (BSCSCAN_API_KEY) — if key is set, otherwise skipped.
@@ -489,6 +544,11 @@ export function startEtherscanMonitor() {
   );
 
   const run = async () => {
+    try {
+      await confirmPendingWithdrawals();
+    } catch (err) {
+      logger.warn({ err }, "Withdrawal confirmation check error");
+    }
     try {
       await scanEtherscanNetworks();
     } catch (err) {
