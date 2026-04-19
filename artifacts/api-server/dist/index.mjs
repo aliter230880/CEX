@@ -27929,7 +27929,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path2 = __require("path");
-        const outputDir = "/home/runner/work/CEX/CEX/artifacts/api-server/dist";
+        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
         return path2.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f2 = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -87805,9 +87805,9 @@ var SUPPORTED_DEPOSIT_ASSETS = {
 // src/routes/wallet.ts
 var router8 = (0, import_express8.Router)();
 var NETWORK_TO_DB = {
-  ETH: "eth",
-  BSC: "bsc",
-  POLYGON: "polygon"
+  ETH: "ETH",
+  BSC: "BSC",
+  POLYGON: "POLYGON"
 };
 async function getSupportedAssets(network) {
   const builtin = SUPPORTED_DEPOSIT_ASSETS[network] ?? [];

@@ -16,11 +16,11 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 
-// Network name mapping: API uses uppercase ("POLYGON"), DB stores lowercase ("polygon")
+// Network name mapping: DB stores uppercase ("POLYGON", "ETH", "BSC")
 const NETWORK_TO_DB: Record<string, string> = {
-  ETH: "eth",
-  BSC: "bsc",
-  POLYGON: "polygon",
+  ETH: "ETH",
+  BSC: "BSC",
+  POLYGON: "POLYGON",
 };
 
 // Helper: get all supported assets for a network (built-in + custom tokens)
