@@ -13,7 +13,7 @@
  */
 
 import { db, usersTable, balancesTable, ordersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { ethers } from "ethers";
 import { matchOrders } from "./matching-engine";
@@ -386,6 +386,87 @@ async function simulatePairTrade(pair: string): Promise<void> {
   );
 }
 
+// ─── Market-maker depth seeding ───────────────────────────────────────────────
+
+// Track resting maker order IDs per pair so we can cancel and replace them
+const makerOrderIds: Map<string, number[]> = new Map();
+
+async function seedOrderBook(pair: string): Promise<void> {
+  if (!botUserIds) return;
+  const [botAId, botBId] = botUserIds;
+
+  let midPrice: number;
+  if (pair === "LUX/USDT" && luxSim) {
+    midPrice = luxSim.current();
+  } else {
+    midPrice = getSeedPrice(pair);
+  }
+  if (!midPrice || midPrice <= 0) return;
+
+  // Cancel previous maker orders for this pair
+  const old = makerOrderIds.get(pair) ?? [];
+  if (old.length > 0) {
+    const oldOrders = await db.select().from(ordersTable).where(inArray(ordersTable.id, old));
+    for (const o of oldOrders) {
+      if (o.status !== "open") continue;
+      const [baseAsset, quoteAsset] = pair.split("/") as [string, string];
+      const unlockAsset = o.side === "buy" ? quoteAsset : baseAsset;
+      const unlockAmt = o.side === "buy"
+        ? parseFloat(o.quantity) * parseFloat(o.price ?? "0")
+        : parseFloat(o.quantity);
+      const [bal] = await db.select().from(balancesTable)
+        .where(and(eq(balancesTable.userId, o.userId), eq(balancesTable.asset, unlockAsset)));
+      if (bal) {
+        await db.update(balancesTable).set({
+          available: (parseFloat(bal.available) + unlockAmt).toFixed(8),
+          locked: Math.max(0, parseFloat(bal.locked) - unlockAmt).toFixed(8),
+        }).where(eq(balancesTable.id, bal.id));
+      }
+      await db.update(ordersTable).set({ status: "cancelled", updatedAt: new Date() })
+        .where(eq(ordersTable.id, o.id));
+    }
+    makerOrderIds.set(pair, []);
+  }
+
+  const newIds: number[] = [];
+  const LEVELS = 10;
+  const volRange = PAIR_VOLUME[pair] ?? { min: 1, max: 10 };
+
+  await ensureBalance(botAId, pair.split("/")[0]!, BOT_STARTING_BALANCES[pair.split("/")[0]!] ?? 10_000);
+  await ensureBalance(botAId, pair.split("/")[1]!, BOT_STARTING_BALANCES[pair.split("/")[1]!] ?? 1_000_000);
+  await ensureBalance(botBId, pair.split("/")[0]!, BOT_STARTING_BALANCES[pair.split("/")[0]!] ?? 10_000);
+  await ensureBalance(botBId, pair.split("/")[1]!, BOT_STARTING_BALANCES[pair.split("/")[1]!] ?? 1_000_000);
+
+  for (let i = 1; i <= LEVELS; i++) {
+    const offset = i * 0.005; // 0.5% per level: -0.5%, -1%, ... -5%
+    const bidPrice = midPrice * (1 - offset);
+    const askPrice = midPrice * (1 + offset);
+    const qty = rand(volRange.min, volRange.max);
+
+    const bidId = await placeOrder(botAId, pair, "buy",  bidPrice, qty);
+    if (bidId) newIds.push(bidId);
+
+    const askId = await placeOrder(botBId, pair, "sell", askPrice, qty);
+    if (askId) newIds.push(askId);
+
+    await sleep(50);
+  }
+
+  makerOrderIds.set(pair, newIds);
+  logger.info({ pair, levels: LEVELS, midPrice: midPrice.toFixed(6), orders: newIds.length }, "Order book seeded");
+}
+
+async function seedAllPairs(): Promise<void> {
+  for (const pair of PAIRS) {
+    try {
+      await seedOrderBook(pair);
+    } catch (err) {
+      logger.warn({ err, pair }, "Failed to seed order book for pair");
+    }
+    await sleep(200);
+  }
+}
+
 // ─── Main loop ────────────────────────────────────────────────────────────────
 
 async function runLoop(): Promise<void> {
@@ -469,7 +550,16 @@ export async function startBotService(): Promise<void> {
 
     isRunning = true;
 
-    // Run in background — don't await
+    // Seed initial order book depth for all pairs (resting maker orders)
+    seedAllPairs().catch((err) => logger.warn({ err }, "Initial order book seeding failed"));
+
+    // Re-seed every 5 minutes to keep depth fresh as prices move
+    const seedInterval = setInterval(() => {
+      if (!isRunning) { clearInterval(seedInterval); return; }
+      seedAllPairs().catch((err) => logger.warn({ err }, "Order book re-seed failed"));
+    }, 5 * 60 * 1000);
+
+    // Run trade simulation in background — don't await
     runLoop().catch((err) => {
       logger.error({ err }, "Bot loop crashed unexpectedly");
       isRunning = false;
