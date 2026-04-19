@@ -87726,19 +87726,19 @@ async function getERC20Balance(address, network, tokenAddress) {
   ]);
   return { balance, decimals: Number(decimals) };
 }
-async function sendNative(toAddress, network, amountWei) {
+async function sendNative(toAddress, network, amountWei, senderWallet) {
   const provider = getProvider2(network);
-  const hotWallet = getHotWallet().connect(provider);
-  const tx = await hotWallet.sendTransaction({ to: toAddress, value: amountWei });
+  const wallet = (senderWallet ?? getHotWallet()).connect(provider);
+  const tx = await wallet.sendTransaction({ to: toAddress, value: amountWei });
   return tx.hash;
 }
-async function sendERC20(toAddress, network, tokenAddress, amount) {
+async function sendERC20(toAddress, network, tokenAddress, amount, senderWallet) {
   const provider = getProvider2(network);
-  const hotWallet = getHotWallet().connect(provider);
+  const wallet = (senderWallet ?? getHotWallet()).connect(provider);
   const contract = new ethers_exports.Contract(
     tokenAddress,
     ["function transfer(address to, uint256 amount) returns (bool)"],
-    hotWallet
+    wallet
   );
   const tx = await contract.transfer(toAddress, amount);
   return tx.hash;
@@ -87888,8 +87888,9 @@ router8.post("/wallet/withdraw", async (req, res) => {
     res.status(400).json({ error: "unsupported_asset", message: err.message });
     return;
   }
-  if (!process.env.HOT_WALLET_PRIVATE_KEY) {
-    res.status(503).json({ error: "wallet_not_configured", message: "Hot wallet not configured. Contact support." });
+  const senderWallet = process.env.WALLET_MNEMONIC ? getHDWallet(userId) : null;
+  if (!senderWallet && !process.env.HOT_WALLET_PRIVATE_KEY) {
+    res.status(503).json({ error: "wallet_not_configured", message: "Wallet not configured. Contact support." });
     return;
   }
   const newAvail = (parseFloat(bal.available) - amt).toFixed(8);
@@ -87907,12 +87908,12 @@ router8.post("/wallet/withdraw", async (req, res) => {
     const amountBig = parseAmount(amt.toFixed(8), config2.decimals);
     let txHash;
     if (config2.isNative) {
-      txHash = await sendNative(toAddress, network, amountBig);
+      txHash = await sendNative(toAddress, network, amountBig, senderWallet ?? void 0);
     } else {
-      txHash = await sendERC20(toAddress, network, config2.contractAddress, amountBig);
+      txHash = await sendERC20(toAddress, network, config2.contractAddress, amountBig, senderWallet ?? void 0);
     }
     await db.update(cryptoTransactionsTable).set({ txHash, status: "pending" }).where(eq(cryptoTransactionsTable.id, txRecord.id));
-    logger.info({ userId, asset, network, amount, txHash, toAddress }, "Withdrawal initiated");
+    logger.info({ userId, asset, network, amount, txHash, toAddress, fromWallet: senderWallet?.address }, "Withdrawal initiated");
     res.json({ success: true, txHash, message: "Withdrawal submitted to blockchain" });
   } catch (err) {
     await db.update(balancesTable).set({ available: bal.available }).where(eq(balancesTable.id, bal.id));
