@@ -27929,7 +27929,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path2 = __require("path");
-        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
+        const outputDir = "/home/runner/work/CEX/CEX/artifacts/api-server/dist";
         return path2.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f2 = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -62876,7 +62876,9 @@ var cryptoTransactionsTable = pgTable("crypto_transactions", {
   confirmations: integer("confirmations").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
-});
+}, (table) => [
+  uniqueIndex("crypto_transactions_tx_hash_unique").on(table.txHash).where(sql`${table.txHash} IS NOT NULL`)
+]);
 
 // ../../lib/db/src/schema/admin_audit_log.ts
 var adminAuditLogTable = pgTable("admin_audit_log", {
@@ -88128,16 +88130,16 @@ async function scanAddressOnBscMoralis(depAddr) {
 async function processTx(userId, asset, network, amount, txHash, fromAddress, toAddress, confirmations) {
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return;
-  const existing = await db.select({ id: cryptoTransactionsTable.id, status: cryptoTransactionsTable.status }).from(cryptoTransactionsTable).where(eq(cryptoTransactionsTable.txHash, txHash));
-  if (existing.length > 0) {
-    if (existing[0].status === "pending") {
-      await db.update(cryptoTransactionsTable).set({ status: "confirmed", confirmations }).where(eq(cryptoTransactionsTable.id, existing[0].id));
-      await creditBalance(userId, asset, network, amount);
-      logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
-    }
+  const upgraded = await db.update(cryptoTransactionsTable).set({ status: "confirmed", confirmations }).where(and(
+    eq(cryptoTransactionsTable.txHash, txHash),
+    eq(cryptoTransactionsTable.status, "pending")
+  )).returning({ id: cryptoTransactionsTable.id });
+  if (upgraded.length > 0) {
+    await creditBalance(userId, asset, network, amount);
+    logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
     return;
   }
-  await db.insert(cryptoTransactionsTable).values({
+  const inserted = await db.insert(cryptoTransactionsTable).values({
     userId,
     type: "deposit",
     asset,
@@ -88148,9 +88150,13 @@ async function processTx(userId, asset, network, amount, txHash, fromAddress, to
     fromAddress,
     toAddress,
     confirmations
-  }).onConflictDoNothing();
-  await creditBalance(userId, asset, network, amount);
-  logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+  }).onConflictDoNothing().returning({ id: cryptoTransactionsTable.id });
+  if (inserted.length > 0) {
+    await creditBalance(userId, asset, network, amount);
+    logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+  } else {
+    logger.debug({ txHash, asset, network }, "Deposit already recorded \u2014 skipping credit (concurrent rescan)");
+  }
 }
 async function creditBalance(userId, asset, network, amount) {
   const amt = parseFloat(amount);
@@ -88850,7 +88856,19 @@ router9.get("/admin/transactions", adminGuard, async (req, res) => {
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
   });
 });
+var lastRescanAt = 0;
+var RESCAN_COOLDOWN_MS = 3e4;
 router9.post("/admin/force-rescan", adminGuard, async (req, res) => {
+  const now = Date.now();
+  if (now - lastRescanAt < RESCAN_COOLDOWN_MS) {
+    const remaining = Math.ceil((RESCAN_COOLDOWN_MS - (now - lastRescanAt)) / 1e3);
+    res.status(429).json({
+      error: "rescan_cooldown",
+      message: `Force-rescan is on cooldown. Wait ${remaining}s to avoid double-crediting deposits.`
+    });
+    return;
+  }
+  lastRescanAt = now;
   const { network, lookbackBlocks } = req.body;
   const networks = network ? [network.toUpperCase()] : ["ETH", "BSC", "POLYGON"];
   const validNetworks = ["ETH", "BSC", "POLYGON"];
