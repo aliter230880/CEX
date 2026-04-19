@@ -6,6 +6,7 @@ import {
   generateDepositAddress,
   isValidEVMAddress,
   getAssetConfig,
+  getHDWallet,
   sendNative,
   sendERC20,
   parseAmount,
@@ -181,8 +182,15 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!process.env.HOT_WALLET_PRIVATE_KEY) {
-    res.status(503).json({ error: "wallet_not_configured", message: "Hot wallet not configured. Contact support." });
+  // Determine sender wallet:
+  // 1. Use user's HD deposit wallet — their funds live there after deposit
+  // 2. Fall back to hot wallet only if WALLET_MNEMONIC is not set
+  const senderWallet = process.env.WALLET_MNEMONIC
+    ? getHDWallet(userId)
+    : null;
+
+  if (!senderWallet && !process.env.HOT_WALLET_PRIVATE_KEY) {
+    res.status(503).json({ error: "wallet_not_configured", message: "Wallet not configured. Contact support." });
     return;
   }
 
@@ -205,16 +213,16 @@ router.post("/wallet/withdraw", async (req, res): Promise<void> => {
     let txHash: string;
 
     if (config.isNative) {
-      txHash = await sendNative(toAddress, network, amountBig);
+      txHash = await sendNative(toAddress, network, amountBig, senderWallet ?? undefined);
     } else {
-      txHash = await sendERC20(toAddress, network, config.contractAddress!, amountBig);
+      txHash = await sendERC20(toAddress, network, config.contractAddress!, amountBig, senderWallet ?? undefined);
     }
 
     await db.update(cryptoTransactionsTable)
       .set({ txHash, status: "pending" })
       .where(eq(cryptoTransactionsTable.id, txRecord!.id));
 
-    logger.info({ userId, asset, network, amount, txHash, toAddress }, "Withdrawal initiated");
+    logger.info({ userId, asset, network, amount, txHash, toAddress, fromWallet: senderWallet?.address }, "Withdrawal initiated");
     res.json({ success: true, txHash, message: "Withdrawal submitted to blockchain" });
   } catch (err) {
     await db.update(balancesTable).set({ available: bal.available }).where(eq(balancesTable.id, bal.id));

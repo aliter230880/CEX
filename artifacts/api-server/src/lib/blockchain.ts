@@ -153,10 +153,11 @@ export async function sendNative(
   toAddress: string,
   network: string,
   amountWei: bigint,
+  senderWallet?: ethers.HDNodeWallet | ethers.Wallet,
 ): Promise<string> {
   const provider = getProvider(network);
-  const hotWallet = getHotWallet().connect(provider);
-  const tx = await hotWallet.sendTransaction({ to: toAddress, value: amountWei });
+  const wallet = (senderWallet ?? getHotWallet()).connect(provider);
+  const tx = await wallet.sendTransaction({ to: toAddress, value: amountWei });
   return tx.hash;
 }
 
@@ -165,13 +166,14 @@ export async function sendERC20(
   network: string,
   tokenAddress: string,
   amount: bigint,
+  senderWallet?: ethers.HDNodeWallet | ethers.Wallet,
 ): Promise<string> {
   const provider = getProvider(network);
-  const hotWallet = getHotWallet().connect(provider);
+  const wallet = (senderWallet ?? getHotWallet()).connect(provider);
   const contract = new ethers.Contract(
     tokenAddress,
     ["function transfer(address to, uint256 amount) returns (bool)"],
-    hotWallet,
+    wallet,
   );
   const tx = await (contract.transfer as (to: string, amount: bigint) => Promise<ethers.TransactionResponse>)(toAddress, amount);
   return tx.hash;
