@@ -27929,7 +27929,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path2 = __require("path");
-        const outputDir = "/home/runner/work/CEX/CEX/artifacts/api-server/dist";
+        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
         return path2.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f2 = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -62810,6 +62810,7 @@ var ordersTable = pgTable("orders", {
   quantity: numeric("quantity", { precision: 28, scale: 8 }).notNull(),
   filled: numeric("filled", { precision: 28, scale: 8 }).notNull().default("0"),
   total: numeric("total", { precision: 28, scale: 8 }).notNull().default("0"),
+  isBot: boolean("is_bot").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
 });
@@ -63161,8 +63162,10 @@ async function matchOrders(newOrderId) {
       or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial")),
       eq(usersTable.status, "active"),
       // exclude frozen users
-      ne(ordersTable.userId, newOrder.userId)
+      ne(ordersTable.userId, newOrder.userId),
       // no self-matching
+      eq(ordersTable.isBot, newOrder.isBot)
+      // real users match real users only
     )
   ).orderBy(newOrder.side === "buy" ? asc(ordersTable.price) : desc(ordersTable.price));
   const matchingOrders = matchingOrdersRaw.map((r) => r.order);
@@ -89240,7 +89243,8 @@ async function placeOrder(userId, pair, side, price, quantity) {
     quantity: quantity.toFixed(8),
     filled: "0",
     total: (quantity * price).toFixed(8),
-    status: "open"
+    status: "open",
+    isBot: true
   }).returning();
   return order?.id ?? null;
 }

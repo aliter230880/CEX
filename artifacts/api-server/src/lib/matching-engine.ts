@@ -21,7 +21,8 @@ export async function matchOrders(newOrderId: number): Promise<void> {
   // Find matching orders (opposite side) — only from active (non-frozen) users
   const oppositeSide = newOrder.side === "buy" ? "sell" : "buy";
 
-  // Use inner join with usersTable so frozen users' orders are excluded at query level
+  // Use inner join with usersTable so frozen users' orders are excluded at query level.
+  // Real user orders only match with real user orders; bot orders only match with bot orders.
   const matchingOrdersRaw = await db
     .select({ order: ordersTable })
     .from(ordersTable)
@@ -33,6 +34,7 @@ export async function matchOrders(newOrderId: number): Promise<void> {
         or(eq(ordersTable.status, "open"), eq(ordersTable.status, "partial")),
         eq(usersTable.status, "active"), // exclude frozen users
         ne(ordersTable.userId, newOrder.userId), // no self-matching
+        eq(ordersTable.isBot, newOrder.isBot), // real users match real users only
       ),
     )
     .orderBy(newOrder.side === "buy" ? asc(ordersTable.price) : desc(ordersTable.price));

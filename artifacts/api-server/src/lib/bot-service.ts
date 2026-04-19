@@ -283,6 +283,7 @@ async function placeOrder(
       filled: "0",
       total: (quantity * price).toFixed(8),
       status: "open",
+      isBot: true,
     })
     .returning();
 
