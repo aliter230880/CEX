@@ -88176,6 +88176,40 @@ async function creditBalance(userId, asset, network, amount) {
     });
   }
 }
+async function confirmPendingWithdrawals() {
+  const NETWORK_RPC = { ETH: "ETH", POLYGON: "POLYGON", BSC: "BSC" };
+  const pendingWithdrawals = await db.select().from(cryptoTransactionsTable).where(and(
+    eq(cryptoTransactionsTable.type, "withdrawal"),
+    eq(cryptoTransactionsTable.status, "pending")
+  ));
+  for (const tx of pendingWithdrawals) {
+    if (!tx.txHash) continue;
+    const rpcNetwork = NETWORK_RPC[tx.network];
+    if (!rpcNetwork) continue;
+    try {
+      const provider = getProvider2(rpcNetwork);
+      const receipt = await Promise.race([
+        provider.getTransactionReceipt(tx.txHash),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5e3))
+      ]);
+      if (!receipt) continue;
+      if (receipt.status === 1) {
+        await db.update(cryptoTransactionsTable).set({ status: "confirmed", confirmations: getRequiredConfirmations(rpcNetwork) }).where(eq(cryptoTransactionsTable.id, tx.id));
+        logger.info({ txHash: tx.txHash, userId: tx.userId, asset: tx.asset, amount: tx.amount }, "Withdrawal confirmed on-chain");
+      } else if (receipt.status === 0) {
+        await db.update(cryptoTransactionsTable).set({ status: "failed" }).where(eq(cryptoTransactionsTable.id, tx.id));
+        const [bal] = await db.select().from(balancesTable).where(and(eq(balancesTable.userId, tx.userId), eq(balancesTable.asset, tx.asset)));
+        if (bal) {
+          const refunded = (parseFloat(bal.available) + parseFloat(tx.amount)).toFixed(8);
+          await db.update(balancesTable).set({ available: refunded }).where(eq(balancesTable.id, bal.id));
+        }
+        logger.warn({ txHash: tx.txHash, userId: tx.userId, asset: tx.asset }, "Withdrawal failed on-chain \u2014 balance refunded");
+      }
+    } catch (err) {
+      logger.debug({ err, txHash: tx.txHash }, "Could not check withdrawal receipt (will retry)");
+    }
+  }
+}
 async function scanEtherscanNetworks() {
   const depositAddresses = await db.select().from(depositAddressesTable);
   if (depositAddresses.length === 0) return;
@@ -88244,6 +88278,11 @@ function startEtherscanMonitor() {
     `Starting explorer deposit monitor (ETH + POLYGON${bscProvider ? ` + BSC via ${bscProvider}` : " \u2014 BSC skipped (no BSCSCAN_API_KEY / MORALIS_API_KEY)"})`
   );
   const run = async () => {
+    try {
+      await confirmPendingWithdrawals();
+    } catch (err) {
+      logger.warn({ err }, "Withdrawal confirmation check error");
+    }
     try {
       await scanEtherscanNetworks();
     } catch (err) {
