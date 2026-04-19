@@ -1,5 +1,5 @@
-import { db, klinesTable, tradingPairsTable, tradesTable } from "@workspace/db";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { db, klinesTable, tradingPairsTable, tradesTable, ordersTable } from "@workspace/db";
+import { eq, desc, and, gte, sql } from "drizzle-orm";
 import { logger } from "./logger";
 import { getRealPrice, getRealStats } from "./price-feed";
 
@@ -133,21 +133,54 @@ export async function getTickerData(pair: string) {
 }
 
 export async function getOrderBookData(pair: string, depth: number = 20) {
-  // Generate simulated order book around current price
-  const price = getSeedPrice(pair);
+  // Fetch real open limit orders for this pair from the database
+  const openOrders = await db
+    .select({
+      side:     ordersTable.side,
+      price:    ordersTable.price,
+      quantity: ordersTable.quantity,
+      filled:   ordersTable.filled,
+    })
+    .from(ordersTable)
+    .where(and(
+      eq(ordersTable.pair,   pair),
+      eq(ordersTable.status, "open"),
+      eq(ordersTable.type,   "limit"),
+      sql`${ordersTable.price} IS NOT NULL`,
+    ));
 
-  const bids: string[][] = [];
-  const asks: string[][] = [];
+  // Aggregate into price levels: group by (side, price), sum remaining qty
+  const bidMap = new Map<string, number>();
+  const askMap = new Map<string, number>();
 
-  for (let i = 1; i <= depth; i++) {
-    const bidPrice = (price * (1 - i * 0.0005)).toFixed(2);
-    const askPrice = (price * (1 + i * 0.0005)).toFixed(2);
-    const bidQty = (Math.random() * 5 + 0.01).toFixed(4);
-    const askQty = (Math.random() * 5 + 0.01).toFixed(4);
-
-    bids.push([bidPrice, bidQty, (parseFloat(bidPrice) * parseFloat(bidQty)).toFixed(2)]);
-    asks.push([askPrice, askQty, (parseFloat(askPrice) * parseFloat(askQty)).toFixed(2)]);
+  for (const o of openOrders) {
+    if (o.price === null) continue;
+    const remaining = parseFloat(o.quantity) - parseFloat(o.filled);
+    if (remaining <= 0) continue;
+    const priceStr = parseFloat(o.price).toFixed(8).replace(/\.?0+$/, "");
+    if (o.side === "buy") {
+      bidMap.set(priceStr, (bidMap.get(priceStr) ?? 0) + remaining);
+    } else {
+      askMap.set(priceStr, (askMap.get(priceStr) ?? 0) + remaining);
+    }
   }
+
+  // Sort and format: bids descending, asks ascending
+  const bids: string[][] = [...bidMap.entries()]
+    .sort((a, b) => parseFloat(b[0]) - parseFloat(a[0]))
+    .slice(0, depth)
+    .map(([p, q]) => {
+      const qty = q.toFixed(4);
+      return [p, qty, (parseFloat(p) * parseFloat(qty)).toFixed(2)];
+    });
+
+  const asks: string[][] = [...askMap.entries()]
+    .sort((a, b) => parseFloat(a[0]) - parseFloat(b[0]))
+    .slice(0, depth)
+    .map(([p, q]) => {
+      const qty = q.toFixed(4);
+      return [p, qty, (parseFloat(p) * parseFloat(qty)).toFixed(2)];
+    });
 
   return {
     pair,
