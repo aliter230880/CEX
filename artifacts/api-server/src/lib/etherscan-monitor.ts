@@ -119,6 +119,8 @@ async function scanAddressOnChain(
   const required   = getRequiredConfirmations(network);
   const startBlock = lastProcessedBlock[`${network}:${addr}`] ?? 0;
 
+  const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
   // ── ERC-20 token transfers ──────────────────────────────────────────────
   let tokenTxs: EtherscanTokenTx[] = [];
   try {
@@ -150,6 +152,9 @@ async function scanAddressOnChain(
 
     await processTx(depAddr.userId, symbol, network, amount, txHash, tx.from, tx.to, confs);
   }
+
+  // Pause between tokentx and txlist to stay under rate limit (free plan: 5 req/sec)
+  await delay(500);
 
   // ── Native coin transfers (ETH / POL / BNB) ────────────────────────────
   const nativeAsset = NATIVE_ASSET[network];
@@ -507,10 +512,10 @@ export async function scanEtherscanNetworks() {
     for (const depAddr of depositAddresses) {
       try {
         await scanAddressOnChain(network, fetchFn, depAddr);
-        // Each address makes 2 API calls (tokentx + txlist).
-        // Free plan limit = 5 req/sec. We wait 1000ms between addresses
-        // to stay well under the rate limit (2 req/sec).
-        await delay(1000);
+        // Each address makes 2 API calls (tokentx + txlist) + 500ms internal delay.
+        // Free plan limit: 5 req/sec (sometimes 3/sec burst). 1500ms between addresses
+        // keeps us at ~1.3 addresses/sec = ~2.7 API calls/sec — safely under limit.
+        await delay(1500);
       } catch (err) {
         logger.warn({ err, network, address: depAddr.address }, "Explorer scan error");
         await delay(2000); // extra back-off on error

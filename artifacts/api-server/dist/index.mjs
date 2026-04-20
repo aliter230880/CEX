@@ -27929,7 +27929,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path2 = __require("path");
-        const outputDir = "/home/runner/work/CEX/CEX/artifacts/api-server/dist";
+        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
         return path2.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f2 = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -88103,6 +88103,7 @@ async function scanAddressOnChain(network, fetchFn, depAddr) {
   const addr = depAddr.address.toLowerCase();
   const required2 = getRequiredConfirmations(network);
   const startBlock = lastProcessedBlock[`${network}:${addr}`] ?? 0;
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
   let tokenTxs = [];
   try {
     tokenTxs = await fetchFn({
@@ -88128,6 +88129,7 @@ async function scanAddressOnChain(network, fetchFn, depAddr) {
     const amount = ethers_exports.formatUnits(tx.value, decimals);
     await processTx(depAddr.userId, symbol2, network, amount, txHash, tx.from, tx.to, confs);
   }
+  await delay(500);
   const nativeAsset = NATIVE_ASSET2[network];
   if (nativeAsset) {
     let nativeTxs = [];
@@ -88371,7 +88373,7 @@ async function scanEtherscanNetworks() {
     for (const depAddr of depositAddresses) {
       try {
         await scanAddressOnChain(network, fetchFn, depAddr);
-        await delay(1e3);
+        await delay(1500);
       } catch (err) {
         logger.warn({ err, network, address: depAddr.address }, "Explorer scan error");
         await delay(2e3);
