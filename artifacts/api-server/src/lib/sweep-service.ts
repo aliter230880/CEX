@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { eq } from "drizzle-orm";
-import { db, customTokensTable } from "@workspace/db";
+import { db, customTokensTable, depositAddressesTable } from "@workspace/db";
 import { logger } from "./logger";
 import {
   getProvider,
@@ -8,6 +8,7 @@ import {
   getHotWallet,
   getAssetConfig,
   getERC20Balance,
+  SUPPORTED_DEPOSIT_ASSETS,
 } from "./blockchain";
 
 // Minimum native balance to leave on deposit address (to avoid stranded dust)
@@ -26,10 +27,21 @@ const GAS_TOP_UP: Record<string, bigint> = {
 
 // How long to wait after sending gas before attempting ERC20 transfer
 const GAS_WAIT_MS: Record<string, number> = {
-  ETH:     90_000,  // ~7 blocks
-  BSC:     30_000,  // ~10 blocks
-  POLYGON: 20_000,  // ~10 blocks
+  ETH:     90_000,
+  BSC:     30_000,
+  POLYGON: 20_000,
 };
+
+// Scheduled sweep interval (30 seconds)
+const SWEEP_INTERVAL_MS = 30_000;
+
+// Minimum ERC-20 token amount worth sweeping (avoid dust)
+const ERC20_DUST_THRESHOLD = 0.0001;
+
+// Track addresses currently being swept to avoid concurrent sweeps
+const sweepInProgress = new Set<string>();
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function resolveAssetConfig(
   asset: string,
@@ -38,7 +50,6 @@ async function resolveAssetConfig(
   try {
     return getAssetConfig(asset, network);
   } catch {
-    // Fall back to custom_tokens table (e.g. LUX)
     const rows = await db.select().from(customTokensTable);
     const row = rows.find(
       (r) => r.symbol === asset && r.network.toUpperCase() === network.toUpperCase(),
@@ -50,7 +61,8 @@ async function resolveAssetConfig(
 
 /**
  * Sweep all tokens of `asset` from the user's deposit address to the hot wallet.
- * Called automatically after every confirmed deposit — runs in background, never throws.
+ * Called after every confirmed deposit AND by the scheduled sweep.
+ * Never throws — logs and returns on any error.
  */
 export async function sweepDepositAddress(
   userId: number,
@@ -58,6 +70,10 @@ export async function sweepDepositAddress(
   network: string,
   depositAddress: string,
 ): Promise<void> {
+  const lockKey = `${network}:${depositAddress.toLowerCase()}:${asset}`;
+  if (sweepInProgress.has(lockKey)) return; // already sweeping this asset
+  sweepInProgress.add(lockKey);
+
   try {
     const cfg = await resolveAssetConfig(asset, network);
     if (!cfg) {
@@ -68,58 +84,51 @@ export async function sweepDepositAddress(
     const provider = getProvider(network);
     const hotWallet = getHotWallet();
     const hotAddress = hotWallet.address;
-
-    // Derive the deposit wallet (HD child wallet for this user)
     const depositWallet = getHDWallet(userId).connect(provider);
 
     if (cfg.isNative) {
-      // ── Native coin sweep ────────────────────────────────────────────────
+      // ── Native coin sweep ──────────────────────────────────────────────────
       const balance = await provider.getBalance(depositAddress);
       const keep = NATIVE_KEEP[network] ?? ethers.parseEther("0.002");
       const sweepAmount = balance > keep ? balance - keep : 0n;
 
-      if (sweepAmount === 0n) {
-        logger.info({ userId, asset, network, balance: ethers.formatEther(balance) }, "Sweep: native balance too low, skipping");
-        return;
-      }
+      if (sweepAmount === 0n) return;
 
-      const tx = await depositWallet.sendTransaction({ to: hotAddress, value: sweepAmount });
-      logger.info(
-        { userId, asset, network, txHash: tx.hash, amount: ethers.formatEther(sweepAmount) },
-        "Sweep: native coins sent to hot wallet",
-      );
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice ?? ethers.parseUnits("30", "gwei");
+      const gasCost = gasPrice * 21000n;
+      const finalAmount = sweepAmount > gasCost ? sweepAmount - gasCost : 0n;
+      if (finalAmount === 0n) return;
+
+      const tx = await depositWallet.sendTransaction({
+        to: hotAddress,
+        value: finalAmount,
+        gasLimit: 21000n,
+        gasPrice,
+      });
+      logger.info({ userId, asset, network, txHash: tx.hash, amount: ethers.formatEther(finalAmount) }, "Sweep: native sent to hot wallet");
 
     } else {
-      // ── ERC-20 sweep ─────────────────────────────────────────────────────
+      // ── ERC-20 sweep ───────────────────────────────────────────────────────
       const contractAddress = cfg.contractAddress!;
       const { balance: tokenBalance, decimals } = await getERC20Balance(depositAddress, network, contractAddress);
 
-      if (tokenBalance === 0n) {
-        logger.info({ userId, asset, network }, "Sweep: ERC20 balance is zero, skipping");
-        return;
-      }
+      if (tokenBalance === 0n) return;
+      if (parseFloat(ethers.formatUnits(tokenBalance, decimals)) < ERC20_DUST_THRESHOLD) return;
 
       // Ensure deposit address has enough native coin for gas
       const nativeBalance = await provider.getBalance(depositAddress);
       const topUpAmount = GAS_TOP_UP[network] ?? ethers.parseEther("0.01");
 
       if (nativeBalance < topUpAmount / 2n) {
-        // Hot wallet refuels the deposit address
         const sendAmount = topUpAmount - nativeBalance;
-        logger.info(
-          { userId, asset, network, depositAddress, sendAmount: ethers.formatEther(sendAmount) },
-          "Sweep: topping up deposit address with gas",
-        );
+        logger.info({ userId, asset, network, depositAddress, sendAmount: ethers.formatEther(sendAmount) }, "Sweep: topping up deposit address with gas");
         const connectedHot = hotWallet.connect(provider);
         const gasTx = await connectedHot.sendTransaction({ to: depositAddress, value: sendAmount });
-        logger.info({ userId, gasTxHash: gasTx.hash }, "Sweep: gas top-up sent, waiting for confirmation");
-
-        // Wait for gas tx to be mined before sending tokens
-        const waitMs = GAS_WAIT_MS[network] ?? 30_000;
-        await new Promise<void>((r) => setTimeout(r, waitMs));
+        logger.info({ userId, gasTxHash: gasTx.hash }, "Sweep: gas top-up sent, waiting...");
+        await new Promise<void>((r) => setTimeout(r, GAS_WAIT_MS[network] ?? 30_000));
       }
 
-      // Transfer ERC-20 tokens to hot wallet
       const contract = new ethers.Contract(
         contractAddress,
         ["function transfer(address to, uint256 amount) returns (bool)"],
@@ -130,17 +139,112 @@ export async function sweepDepositAddress(
       )(hotAddress, tokenBalance);
 
       logger.info(
-        {
-          userId, asset, network,
-          txHash: tx.hash,
-          amount: ethers.formatUnits(tokenBalance, decimals),
-          hotAddress,
-        },
-        "Sweep: ERC20 tokens sent to hot wallet",
+        { userId, asset, network, txHash: tx.hash, amount: ethers.formatUnits(tokenBalance, decimals) },
+        "Sweep: ERC20 sent to hot wallet",
       );
     }
   } catch (err) {
-    // Never crash the deposit flow — log and continue
-    logger.warn({ err, userId, asset, network, depositAddress }, "Sweep: failed (non-fatal, deposit already credited)");
+    logger.warn({ err, userId, asset, network, depositAddress }, "Sweep: failed (non-fatal)");
+  } finally {
+    sweepInProgress.delete(lockKey);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scheduled sweep — runs every 30s, checks all deposit addresses on all networks
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function runScheduledSweep(): Promise<void> {
+  try {
+    const depositAddresses = await db.select().from(depositAddressesTable);
+    if (depositAddresses.length === 0) return;
+
+    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+    // Load custom tokens once per cycle
+    const customTokens = await db.select().from(customTokensTable);
+
+    const networks = Object.keys(SUPPORTED_DEPOSIT_ASSETS);
+
+    for (const depAddr of depositAddresses) {
+      for (const network of networks) {
+        try {
+          const provider = getProvider(network);
+
+          // 1. Native coin check
+          const nativeBalance = await provider.getBalance(depAddr.address);
+          const keep = NATIVE_KEEP[network] ?? ethers.parseEther("0.002");
+          if (nativeBalance > keep) {
+            void sweepDepositAddress(depAddr.userId, nativeAssetForNetwork(network), network, depAddr.address);
+          }
+
+          await delay(300);
+
+          // 2. Standard ERC-20 tokens (USDT, USDC, etc.)
+          const standardAssets = (SUPPORTED_DEPOSIT_ASSETS[network] ?? []).filter(
+            (a) => a !== nativeAssetForNetwork(network),
+          );
+          for (const asset of standardAssets) {
+            try {
+              const cfg = getAssetConfig(asset, network);
+              if (!cfg.contractAddress) continue;
+              const { balance } = await getERC20Balance(depAddr.address, network, cfg.contractAddress);
+              if (balance > 0n && parseFloat(ethers.formatUnits(balance, cfg.decimals)) >= ERC20_DUST_THRESHOLD) {
+                void sweepDepositAddress(depAddr.userId, asset, network, depAddr.address);
+              }
+              await delay(200);
+            } catch { /* unsupported asset/network combo — skip */ }
+          }
+
+          // 3. Custom tokens (LUX, etc.)
+          const netCustomTokens = customTokens.filter(
+            (t) => t.network.toUpperCase() === network.toUpperCase() && t.contractAddress,
+          );
+          for (const token of netCustomTokens) {
+            try {
+              const { balance } = await getERC20Balance(depAddr.address, network, token.contractAddress!);
+              if (balance > 0n && parseFloat(ethers.formatUnits(balance, token.decimals ?? 18)) >= ERC20_DUST_THRESHOLD) {
+                void sweepDepositAddress(depAddr.userId, token.symbol, network, depAddr.address);
+              }
+              await delay(200);
+            } catch { /* skip */ }
+          }
+
+        } catch (err) {
+          logger.warn({ err, address: depAddr.address, network }, "Scheduled sweep: network scan error");
+        }
+
+        await delay(500); // between networks per address
+      }
+
+      await delay(1000); // between addresses
+    }
+  } catch (err) {
+    logger.warn({ err }, "Scheduled sweep cycle error");
+  }
+}
+
+function nativeAssetForNetwork(network: string): string {
+  const map: Record<string, string> = { ETH: "ETH", BSC: "BNB", POLYGON: "POL" };
+  return map[network] ?? network;
+}
+
+let sweepInterval: NodeJS.Timeout | null = null;
+
+export function startScheduledSweep(): void {
+  if (sweepInterval) return;
+  logger.info({ intervalMs: SWEEP_INTERVAL_MS }, "Scheduled sweep started");
+
+  // First run after 10s (let server fully start up)
+  setTimeout(() => {
+    void runScheduledSweep();
+    sweepInterval = setInterval(() => void runScheduledSweep(), SWEEP_INTERVAL_MS);
+  }, 10_000);
+}
+
+export function stopScheduledSweep(): void {
+  if (sweepInterval) {
+    clearInterval(sweepInterval);
+    sweepInterval = null;
   }
 }

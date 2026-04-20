@@ -29,6 +29,7 @@ import { seedData } from "./lib/seed";
 import { startDepositMonitor } from "./lib/deposit-monitor";
 import { startPriceFeed } from "./lib/price-feed";
 import { startBotService } from "./lib/bot-service";
+import { startScheduledSweep } from "./lib/sweep-service";
 
 const rawPort = process.env["PORT"];
 
@@ -56,6 +57,7 @@ app.listen(port, (err) => {
   startBotService().catch(err => logger.error({ err }, "Bot service failed to start"));
   if (process.env.WALLET_MNEMONIC) {
     startDepositMonitor();
+    startScheduledSweep();
   } else {
     logger.warn("WALLET_MNEMONIC not set — deposit monitoring disabled");
   }

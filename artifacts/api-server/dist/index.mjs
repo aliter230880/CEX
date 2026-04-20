@@ -87972,12 +87972,12 @@ var GAS_TOP_UP = {
 };
 var GAS_WAIT_MS = {
   ETH: 9e4,
-  // ~7 blocks
   BSC: 3e4,
-  // ~10 blocks
   POLYGON: 2e4
-  // ~10 blocks
 };
+var SWEEP_INTERVAL_MS = 3e4;
+var ERC20_DUST_THRESHOLD = 1e-4;
+var sweepInProgress = /* @__PURE__ */ new Set();
 async function resolveAssetConfig2(asset, network) {
   try {
     return getAssetConfig(asset, network);
@@ -87991,6 +87991,9 @@ async function resolveAssetConfig2(asset, network) {
   }
 }
 async function sweepDepositAddress(userId, asset, network, depositAddress) {
+  const lockKey = `${network}:${depositAddress.toLowerCase()}:${asset}`;
+  if (sweepInProgress.has(lockKey)) return;
+  sweepInProgress.add(lockKey);
   try {
     const cfg = await resolveAssetConfig2(asset, network);
     if (!cfg) {
@@ -88005,35 +88008,33 @@ async function sweepDepositAddress(userId, asset, network, depositAddress) {
       const balance = await provider.getBalance(depositAddress);
       const keep = NATIVE_KEEP[network] ?? ethers_exports.parseEther("0.002");
       const sweepAmount = balance > keep ? balance - keep : 0n;
-      if (sweepAmount === 0n) {
-        logger.info({ userId, asset, network, balance: ethers_exports.formatEther(balance) }, "Sweep: native balance too low, skipping");
-        return;
-      }
-      const tx = await depositWallet.sendTransaction({ to: hotAddress, value: sweepAmount });
-      logger.info(
-        { userId, asset, network, txHash: tx.hash, amount: ethers_exports.formatEther(sweepAmount) },
-        "Sweep: native coins sent to hot wallet"
-      );
+      if (sweepAmount === 0n) return;
+      const feeData = await provider.getFeeData();
+      const gasPrice = feeData.gasPrice ?? ethers_exports.parseUnits("30", "gwei");
+      const gasCost = gasPrice * 21000n;
+      const finalAmount = sweepAmount > gasCost ? sweepAmount - gasCost : 0n;
+      if (finalAmount === 0n) return;
+      const tx = await depositWallet.sendTransaction({
+        to: hotAddress,
+        value: finalAmount,
+        gasLimit: 21000n,
+        gasPrice
+      });
+      logger.info({ userId, asset, network, txHash: tx.hash, amount: ethers_exports.formatEther(finalAmount) }, "Sweep: native sent to hot wallet");
     } else {
       const contractAddress = cfg.contractAddress;
       const { balance: tokenBalance, decimals } = await getERC20Balance(depositAddress, network, contractAddress);
-      if (tokenBalance === 0n) {
-        logger.info({ userId, asset, network }, "Sweep: ERC20 balance is zero, skipping");
-        return;
-      }
+      if (tokenBalance === 0n) return;
+      if (parseFloat(ethers_exports.formatUnits(tokenBalance, decimals)) < ERC20_DUST_THRESHOLD) return;
       const nativeBalance = await provider.getBalance(depositAddress);
       const topUpAmount = GAS_TOP_UP[network] ?? ethers_exports.parseEther("0.01");
       if (nativeBalance < topUpAmount / 2n) {
         const sendAmount = topUpAmount - nativeBalance;
-        logger.info(
-          { userId, asset, network, depositAddress, sendAmount: ethers_exports.formatEther(sendAmount) },
-          "Sweep: topping up deposit address with gas"
-        );
+        logger.info({ userId, asset, network, depositAddress, sendAmount: ethers_exports.formatEther(sendAmount) }, "Sweep: topping up deposit address with gas");
         const connectedHot = hotWallet.connect(provider);
         const gasTx = await connectedHot.sendTransaction({ to: depositAddress, value: sendAmount });
-        logger.info({ userId, gasTxHash: gasTx.hash }, "Sweep: gas top-up sent, waiting for confirmation");
-        const waitMs = GAS_WAIT_MS[network] ?? 3e4;
-        await new Promise((r) => setTimeout(r, waitMs));
+        logger.info({ userId, gasTxHash: gasTx.hash }, "Sweep: gas top-up sent, waiting...");
+        await new Promise((r) => setTimeout(r, GAS_WAIT_MS[network] ?? 3e4));
       }
       const contract = new ethers_exports.Contract(
         contractAddress,
@@ -88042,20 +88043,84 @@ async function sweepDepositAddress(userId, asset, network, depositAddress) {
       );
       const tx = await contract.transfer(hotAddress, tokenBalance);
       logger.info(
-        {
-          userId,
-          asset,
-          network,
-          txHash: tx.hash,
-          amount: ethers_exports.formatUnits(tokenBalance, decimals),
-          hotAddress
-        },
-        "Sweep: ERC20 tokens sent to hot wallet"
+        { userId, asset, network, txHash: tx.hash, amount: ethers_exports.formatUnits(tokenBalance, decimals) },
+        "Sweep: ERC20 sent to hot wallet"
       );
     }
   } catch (err) {
-    logger.warn({ err, userId, asset, network, depositAddress }, "Sweep: failed (non-fatal, deposit already credited)");
+    logger.warn({ err, userId, asset, network, depositAddress }, "Sweep: failed (non-fatal)");
+  } finally {
+    sweepInProgress.delete(lockKey);
   }
+}
+async function runScheduledSweep() {
+  try {
+    const depositAddresses = await db.select().from(depositAddressesTable);
+    if (depositAddresses.length === 0) return;
+    const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+    const customTokens = await db.select().from(customTokensTable);
+    const networks = Object.keys(SUPPORTED_DEPOSIT_ASSETS);
+    for (const depAddr of depositAddresses) {
+      for (const network of networks) {
+        try {
+          const provider = getProvider2(network);
+          const nativeBalance = await provider.getBalance(depAddr.address);
+          const keep = NATIVE_KEEP[network] ?? ethers_exports.parseEther("0.002");
+          if (nativeBalance > keep) {
+            void sweepDepositAddress(depAddr.userId, nativeAssetForNetwork(network), network, depAddr.address);
+          }
+          await delay(300);
+          const standardAssets = (SUPPORTED_DEPOSIT_ASSETS[network] ?? []).filter(
+            (a) => a !== nativeAssetForNetwork(network)
+          );
+          for (const asset of standardAssets) {
+            try {
+              const cfg = getAssetConfig(asset, network);
+              if (!cfg.contractAddress) continue;
+              const { balance } = await getERC20Balance(depAddr.address, network, cfg.contractAddress);
+              if (balance > 0n && parseFloat(ethers_exports.formatUnits(balance, cfg.decimals)) >= ERC20_DUST_THRESHOLD) {
+                void sweepDepositAddress(depAddr.userId, asset, network, depAddr.address);
+              }
+              await delay(200);
+            } catch {
+            }
+          }
+          const netCustomTokens = customTokens.filter(
+            (t) => t.network.toUpperCase() === network.toUpperCase() && t.contractAddress
+          );
+          for (const token of netCustomTokens) {
+            try {
+              const { balance } = await getERC20Balance(depAddr.address, network, token.contractAddress);
+              if (balance > 0n && parseFloat(ethers_exports.formatUnits(balance, token.decimals ?? 18)) >= ERC20_DUST_THRESHOLD) {
+                void sweepDepositAddress(depAddr.userId, token.symbol, network, depAddr.address);
+              }
+              await delay(200);
+            } catch {
+            }
+          }
+        } catch (err) {
+          logger.warn({ err, address: depAddr.address, network }, "Scheduled sweep: network scan error");
+        }
+        await delay(500);
+      }
+      await delay(1e3);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Scheduled sweep cycle error");
+  }
+}
+function nativeAssetForNetwork(network) {
+  const map2 = { ETH: "ETH", BSC: "BNB", POLYGON: "POL" };
+  return map2[network] ?? network;
+}
+var sweepInterval = null;
+function startScheduledSweep() {
+  if (sweepInterval) return;
+  logger.info({ intervalMs: SWEEP_INTERVAL_MS }, "Scheduled sweep started");
+  setTimeout(() => {
+    void runScheduledSweep();
+    sweepInterval = setInterval(() => void runScheduledSweep(), SWEEP_INTERVAL_MS);
+  }, 1e4);
 }
 
 // src/lib/etherscan-monitor.ts
@@ -89596,6 +89661,7 @@ app_default.listen(port, (err) => {
   startBotService().catch((err2) => logger.error({ err: err2 }, "Bot service failed to start"));
   if (process.env.WALLET_MNEMONIC) {
     startDepositMonitor();
+    startScheduledSweep();
   } else {
     logger.warn("WALLET_MNEMONIC not set \u2014 deposit monitoring disabled");
   }
