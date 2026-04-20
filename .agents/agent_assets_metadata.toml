@@ -6,3 +6,9 @@ id = "2hDKNe36cEC7rnTtvccBC"
 uri = "file://nexex-deploy.tar.gz"
 type = "unspecified"
 title = "NexEx — Production Package"
+
+[[outputs]]
+id = "foVHEaEpyDHKHvWmpr9qH"
+uri = "file://CEX_Comparison_Analysis.xlsx"
+type = "table"
+title = "Сравнительный анализ CEX-бирж + ATEX White Label"

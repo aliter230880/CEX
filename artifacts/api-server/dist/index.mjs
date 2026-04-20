@@ -27929,7 +27929,7 @@ var require_pino = __commonJS({
     function pinoBundlerAbsolutePath(p) {
       try {
         const path2 = __require("path");
-        const outputDir = "/home/runner/work/CEX/CEX/artifacts/api-server/dist";
+        const outputDir = "/home/runner/workspace/artifacts/api-server/dist";
         return path2.resolve(outputDir, p.replace(/^\.\//, ""));
       } catch (e) {
         const f2 = new Function("p", "return new URL(p, import.meta.url).pathname");
@@ -87959,6 +87959,105 @@ var wallet_default = router8;
 // src/routes/admin.ts
 var import_express9 = __toESM(require_express2(), 1);
 
+// src/lib/sweep-service.ts
+var NATIVE_KEEP = {
+  ETH: ethers_exports.parseEther("0.002"),
+  BSC: ethers_exports.parseEther("0.001"),
+  POLYGON: ethers_exports.parseEther("0.002")
+};
+var GAS_TOP_UP = {
+  ETH: ethers_exports.parseEther("0.005"),
+  BSC: ethers_exports.parseEther("0.001"),
+  POLYGON: ethers_exports.parseEther("0.01")
+};
+var GAS_WAIT_MS = {
+  ETH: 9e4,
+  // ~7 blocks
+  BSC: 3e4,
+  // ~10 blocks
+  POLYGON: 2e4
+  // ~10 blocks
+};
+async function resolveAssetConfig2(asset, network) {
+  try {
+    return getAssetConfig(asset, network);
+  } catch {
+    const rows = await db.select().from(customTokensTable);
+    const row = rows.find(
+      (r) => r.symbol === asset && r.network.toUpperCase() === network.toUpperCase()
+    );
+    if (!row || !row.contractAddress) return null;
+    return { isNative: false, contractAddress: row.contractAddress, decimals: row.decimals ?? 18 };
+  }
+}
+async function sweepDepositAddress(userId, asset, network, depositAddress) {
+  try {
+    const cfg = await resolveAssetConfig2(asset, network);
+    if (!cfg) {
+      logger.warn({ userId, asset, network }, "Sweep: unknown asset, skipping");
+      return;
+    }
+    const provider = getProvider2(network);
+    const hotWallet = getHotWallet();
+    const hotAddress = hotWallet.address;
+    const depositWallet = getHDWallet(userId).connect(provider);
+    if (cfg.isNative) {
+      const balance = await provider.getBalance(depositAddress);
+      const keep = NATIVE_KEEP[network] ?? ethers_exports.parseEther("0.002");
+      const sweepAmount = balance > keep ? balance - keep : 0n;
+      if (sweepAmount === 0n) {
+        logger.info({ userId, asset, network, balance: ethers_exports.formatEther(balance) }, "Sweep: native balance too low, skipping");
+        return;
+      }
+      const tx = await depositWallet.sendTransaction({ to: hotAddress, value: sweepAmount });
+      logger.info(
+        { userId, asset, network, txHash: tx.hash, amount: ethers_exports.formatEther(sweepAmount) },
+        "Sweep: native coins sent to hot wallet"
+      );
+    } else {
+      const contractAddress = cfg.contractAddress;
+      const { balance: tokenBalance, decimals } = await getERC20Balance(depositAddress, network, contractAddress);
+      if (tokenBalance === 0n) {
+        logger.info({ userId, asset, network }, "Sweep: ERC20 balance is zero, skipping");
+        return;
+      }
+      const nativeBalance = await provider.getBalance(depositAddress);
+      const topUpAmount = GAS_TOP_UP[network] ?? ethers_exports.parseEther("0.01");
+      if (nativeBalance < topUpAmount / 2n) {
+        const sendAmount = topUpAmount - nativeBalance;
+        logger.info(
+          { userId, asset, network, depositAddress, sendAmount: ethers_exports.formatEther(sendAmount) },
+          "Sweep: topping up deposit address with gas"
+        );
+        const connectedHot = hotWallet.connect(provider);
+        const gasTx = await connectedHot.sendTransaction({ to: depositAddress, value: sendAmount });
+        logger.info({ userId, gasTxHash: gasTx.hash }, "Sweep: gas top-up sent, waiting for confirmation");
+        const waitMs = GAS_WAIT_MS[network] ?? 3e4;
+        await new Promise((r) => setTimeout(r, waitMs));
+      }
+      const contract = new ethers_exports.Contract(
+        contractAddress,
+        ["function transfer(address to, uint256 amount) returns (bool)"],
+        depositWallet
+      );
+      const tx = await contract.transfer(hotAddress, tokenBalance);
+      logger.info(
+        {
+          userId,
+          asset,
+          network,
+          txHash: tx.hash,
+          amount: ethers_exports.formatUnits(tokenBalance, decimals),
+          hotAddress
+        },
+        "Sweep: ERC20 tokens sent to hot wallet"
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, userId, asset, network, depositAddress }, "Sweep: failed (non-fatal, deposit already credited)");
+  }
+}
+
 // src/lib/etherscan-monitor.ts
 var ETHERSCAN_BASE = "https://api.etherscan.io/v2/api";
 var ETHERSCAN_CHAIN_IDS = {
@@ -88152,6 +88251,20 @@ async function scanAddressOnBscMoralis(depAddr) {
     lastProcessedBlock[`BSC:${addr}`] = maxBlock + 1;
   }
 }
+async function triggerSweep(userId, asset, network, depositAddress) {
+  try {
+    let addr = depositAddress;
+    if (!addr) {
+      const [row] = await db.select().from(depositAddressesTable).where(eq(depositAddressesTable.userId, userId));
+      addr = row?.address ?? "";
+    }
+    if (addr) {
+      await sweepDepositAddress(userId, asset, network, addr);
+    }
+  } catch (err) {
+    logger.warn({ err, userId, asset, network }, "Auto-sweep trigger failed");
+  }
+}
 async function processTx(userId, asset, network, amount, txHash, fromAddress, toAddress, confirmations) {
   const amt = parseFloat(amount);
   if (isNaN(amt) || amt <= 0) return;
@@ -88162,6 +88275,7 @@ async function processTx(userId, asset, network, amount, txHash, fromAddress, to
   if (upgraded.length > 0) {
     await creditBalance(userId, asset, network, amount);
     logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
+    void triggerSweep(userId, asset, network, toAddress);
     return;
   }
   const inserted = await db.insert(cryptoTransactionsTable).values({
@@ -88179,6 +88293,7 @@ async function processTx(userId, asset, network, amount, txHash, fromAddress, to
   if (inserted.length > 0) {
     await creditBalance(userId, asset, network, amount);
     logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+    void triggerSweep(userId, asset, network, toAddress);
   } else {
     logger.debug({ txHash, asset, network }, "Deposit already recorded \u2014 skipping credit (concurrent rescan)");
   }

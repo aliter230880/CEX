@@ -1,0 +1,20 @@
+Критерий,Binance,Coinbase,Kraken,Bybit,OKX,HEX (Aliterra Space)
+Тип архитектуры,Centralized (CEX),Centralized (CEX),Centralized (CEX),Centralized (CEX),Hybrid (CEX+DEX),Decentralized / Web3 Interface (DEX Aggregator)
+Кастодиальность,Кастодиальная (биржа хранит ключи),Кастодиальная,Кастодиальная,Кастодиальная,Частично кастодиальная,Некастодиальная (пользователь хранит ключи)
+Технологический стек,"Proprietary (C++, Java, Go)","Proprietary (Java, React)","Proprietary (Ruby, Go)","Proprietary (Go, React)","Proprietary (C++, Rust)","Web3 Stack (React/Vue, Ethers.js, Solidity/Polygon)"
+Ликвидность,Огромная (внутренний Order Book),Высокая (внутренний Order Book),Средняя/Высокая,Высокая (деривативы),Высокая (агрегация DEX),"Зависит от внешних DEX (Uniswap, Curve и т.д.)"
+Безопасность,"SAFU Fund, Cold Storage, 2FA, KYC, SOC2","FBI-insured, Cold Storage, Public Company, KYC","Proof of Reserves, Cold Storage, KYC","Proof of Reserves, 2FA, KYC","Proof of Reserves, 2FA, KYC","Smart Contract Audits, Non-custodial, No KYC (опционально)"
+Регуляторика,Глобальная (лицензии в 10+ странах),SEC-regulated (USA),"FCA (UK), FinCEN (USA)",Глобальная (офшор + лицензии),Глобальная (офшор + лицензии),Децентрализованная (нет юрлица-оператора)
+Комиссии (Maker/Taker),0.1% / 0.1% (снижаются с объемом),0.4% - 0.6% (высокие для розницы),0.16% / 0.26%,0.1% / 0.1%,0.08% / 0.1%,Gas Fee сети + Swap Fee протокола (0.3% в DEX)
+Скорость транзакций,Мгновенная (внутри базы данных),Мгновенная (внутри БД),Мгновенная,Мгновенная,Мгновенная,"Зависит от блокчейна (Polygon ~2 сек, Ethereum ~12 сек)"
+White Label Возможность,Нет (закрытая экосистема),Нет (закрытая экосистема),Нет (закрытая экосистема),Нет (закрытая экосистема),Частично (OKX Chain SDK),ДА (Open Source / Forkable Architecture)
+Стоимость White Label,Н/Д,Н/Д,Н/Д,Н/Д,Н/Д,"$5k - $50k (разработка + деплой)"
+Time-to-Market (для покупателя),Н/Д,Н/Д,Н/Д,Н/Д,Н/Д,1-4 недели (форк + ребрендинг)
+Поддержка фиата (USD/EUR),"Да (SWIFT, SEPA, Cards)","Да (Bank Transfer, Cards)","Да (SWIFT, SEPA)",Ограниченно (P2P),"Да (P2P, Cards)",Нет (только Crypto-to-Crypto)
+KYC/AML,Обязательно (строгое),Обязательно (строгое),Обязательно,Обязательно,Обязательно,Нет (или опционально через провайдеров)
+Мобильное приложение,Нативное (iOS/Android),Нативное (iOS/Android),Нативное (iOS/Android),Нативное (iOS/Android),Нативное (iOS/Android),PWA / WebView Wrapper (Capacitor)
+API для трейдингов,"REST, WebSocket, FIX","REST, WebSocket","WebSocket, REST","REST, WebSocket","REST, WebSocket",GraphQL / Web3 Providers (ethers.js)
+Уникальное преимущество,Ликвидность #1 в мире,Доверие институционалов,Безопасность и регуляция,Лучшие деривативы,Web3 интеграция,"Полный контроль владельца, Privacy, Zero-Knowledge потенциал"
+Риск взлома биржи,Средний (центральный ханипот),Низкий (страховка),Низкий,Средний,Средний,Нулевой (риск смарт-контрактов)
+Риск регуляторного давления,Высокий (банят страны),Высокий (SEC суды),Средний,Средний,Средний,Нулевой (децентрализация)
+Оценка White Label (1-10),0,0,0,0,2,9 (для нишевых проектов)

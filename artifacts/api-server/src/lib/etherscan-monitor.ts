@@ -19,6 +19,7 @@ import { eq, and } from "drizzle-orm";
 import { db, depositAddressesTable, cryptoTransactionsTable, balancesTable, customTokensTable } from "@workspace/db";
 import { logger } from "./logger";
 import { getRequiredConfirmations, getProvider } from "./blockchain";
+import { sweepDepositAddress } from "./sweep-service";
 
 const ETHERSCAN_BASE = "https://api.etherscan.io/v2/api";
 
@@ -319,6 +320,21 @@ async function scanAddressOnBscMoralis(
   }
 }
 
+async function triggerSweep(userId: number, asset: string, network: string, depositAddress: string) {
+  try {
+    let addr = depositAddress;
+    if (!addr) {
+      const [row] = await db.select().from(depositAddressesTable).where(eq(depositAddressesTable.userId, userId));
+      addr = row?.address ?? "";
+    }
+    if (addr) {
+      await sweepDepositAddress(userId, asset, network, addr);
+    }
+  } catch (err) {
+    logger.warn({ err, userId, asset, network }, "Auto-sweep trigger failed");
+  }
+}
+
 async function processTx(
   userId:      number,
   asset:       string,
@@ -345,6 +361,8 @@ async function processTx(
   if (upgraded.length > 0) {
     await creditBalance(userId, asset, network, amount);
     logger.info({ userId, asset, network, amount, txHash }, "Deposit confirmed (was pending)");
+    // Auto-sweep: move funds to hot wallet (non-blocking)
+    void triggerSweep(userId, asset, network, toAddress);
     return;
   }
 
@@ -367,6 +385,8 @@ async function processTx(
   if (inserted.length > 0) {
     await creditBalance(userId, asset, network, amount);
     logger.info({ userId, asset, network, amount, txHash }, "Deposit credited via Etherscan");
+    // Auto-sweep: move funds to hot wallet (non-blocking)
+    void triggerSweep(userId, asset, network, toAddress);
   } else {
     logger.debug({ txHash, asset, network }, "Deposit already recorded — skipping credit (concurrent rescan)");
   }

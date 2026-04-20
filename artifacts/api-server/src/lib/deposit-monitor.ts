@@ -11,6 +11,7 @@ import {
   getRequiredConfirmations,
 } from "./blockchain";
 import { startEtherscanMonitor, stopEtherscanMonitor, resetEtherscanScan } from "./etherscan-monitor";
+import { sweepDepositAddress } from "./sweep-service";
 
 const ERC20_ABI = [
   "event Transfer(address indexed from, address indexed to, uint256 value)",
@@ -363,6 +364,26 @@ async function creditDeposit(
   }
 
   logger.info({ userId, asset, network, amount, txHash }, "Deposit credited");
+
+  // Auto-sweep: move funds from deposit address to hot wallet (non-blocking)
+  // Resolve deposit address: use toAddress if available, otherwise look up from DB
+  (async () => {
+    try {
+      let depositAddr = toAddress;
+      if (!depositAddr) {
+        const [row] = await db
+          .select()
+          .from(depositAddressesTable)
+          .where(eq(depositAddressesTable.userId, userId));
+        depositAddr = row?.address;
+      }
+      if (depositAddr) {
+        await sweepDepositAddress(userId, asset, network, depositAddr);
+      }
+    } catch (err) {
+      logger.warn({ err, userId, asset, network }, "Auto-sweep trigger failed");
+    }
+  })();
 }
 
 // ETH and POLYGON are handled by the Etherscan monitor (more reliable, full history).
